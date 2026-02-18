@@ -103,8 +103,8 @@
 
 <!-- Sağ Tık Menüsü -->
 <div id="leaderboard-ctx" class="ctx-menu" style="display:none; position:fixed; z-index:1000;">
-    <button id="ctx-profile-link" class="ctx-item" onclick="goToProfile()">👤 Profile Git</button>
-    <button id="ctx-add-friend-btn" class="ctx-item" onclick="ctxAddFriend()">➕ Arkadaş Ekle</button>
+    <div class="ctx-item" onclick="handleProfileClick(event)">👤 Profile Git</div>
+    <div class="ctx-item" onclick="handleAddFriendClick(event)">➕ Arkadaş Ekle</div>
 </div>
 
 <style>
@@ -128,14 +128,15 @@
     .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.05rem; white-space: nowrap; }
     .lb-stat span { font-size: 0.75rem; color: var(--text2); font-weight: 400; }
     .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-style: italic; }
-    .ctx-menu { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 160px; }
-    .ctx-item { display: block; width: 100%; text-align: left; padding: 9px 14px; color: var(--text); text-decoration: none; font-size: 0.9rem; border-radius: 6px; border: none; background: none; cursor: pointer; transition: background 0.15s; }
+    .ctx-menu { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 0px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 180px; }
+    .ctx-item { display: block; width: 100%; text-align: left; padding: 12px 16px; color: var(--text); text-decoration: none; font-size: 0.95rem; border: none; background: none; cursor: pointer; transition: background 0.15s; }
     .ctx-item:hover { background: rgba(255,255,255,0.08); color: var(--accent); }
     @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 </style>
 
 <script>
-    let ctxUserId = null;
+    let selectedUserId = null;
+    let selectedIsMe = false;
 
     function showLB(type, btn) {
         document.querySelectorAll('.lb-pane').forEach(p => p.classList.remove('active'));
@@ -144,69 +145,76 @@
         btn.classList.add('active');
     }
 
+    // Sağ tık olayı
     document.addEventListener('contextmenu', function(e) {
-        const row = e.target.closest('.lb-item');
+        const item = e.target.closest('.lb-item');
+        if (!item) return;
+        
+        e.preventDefault();
+        
+        selectedUserId = item.getAttribute('data-user-id');
+        selectedIsMe = item.getAttribute('data-is-me') === 'true';
+        
         const menu = document.getElementById('leaderboard-ctx');
-
-        if (row) {
-            e.preventDefault();
-            ctxUserId = row.getAttribute('data-user-id');
-            const isMe = row.getAttribute('data-is-me') === 'true';
-
-            // Ekran kenarı taşmasını önle
-            menu.style.display = 'block';
-            const menuW = menu.offsetWidth || 165;
-            const menuH = menu.offsetHeight || 85;
-            const x = Math.min(e.clientX, window.innerWidth - menuW - 10);
-            const y = Math.min(e.clientY, window.innerHeight - menuH - 10);
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
-
-            document.getElementById('ctx-add-friend-btn').style.display = isMe ? 'none' : 'block';
-        } else {
-            menu.style.display = 'none';
-        }
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+        menu.style.display = 'block';
+        
+        // Arkadaş ekle butonunu gizle/göster
+        const items = menu.querySelectorAll('.ctx-item');
+        items[1].style.display = selectedIsMe ? 'none' : 'block';
     });
 
-    function goToProfile() {
-        const userId = ctxUserId;
-        document.getElementById('leaderboard-ctx').style.display = 'none';
-        if (userId) {
-            window.location.href = '/user/' + userId;
-        }
-    }
-
-    function ctxAddFriend() {
-        const userId = ctxUserId;
-        document.getElementById('leaderboard-ctx').style.display = 'none';
-        if (!userId) return;
-
-        fetch('/api/add-friend-by-id', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: parseInt(userId) })
-        })
-        .then(r => r.json())
-        .then(d => {
-            showXPPopup(0, d.message || (d.success ? '🤝 İstek gönderildi!' : '❌ Hata'));
-        })
-        .catch(() => showXPPopup(0, '❌ Bağlantı hatası'));
-    }
-
+    // Menü dışında click yapınca kapat
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('leaderboard-ctx');
-        const isMenuButton = e.target.closest('.ctx-item');
-        
-        // Menu button'larına tıklarsa menüyü kapatma (button handler çalışacak)
-        if (isMenuButton) return;
-        
         if (!menu.contains(e.target)) {
             menu.style.display = 'none';
         }
     });
 
+    // Profile git
+    function handleProfileClick(e) {
+        e.stopPropagation();
+        document.getElementById('leaderboard-ctx').style.display = 'none';
+        if (selectedUserId) {
+            location.href = '/user/' + selectedUserId;
+        }
+    }
+
+    // Arkadaş ekle
+    function handleAddFriendClick(e) {
+        e.stopPropagation();
+        document.getElementById('leaderboard-ctx').style.display = 'none';
+        if (selectedUserId && !selectedIsMe) {
+            addFriend(selectedUserId);
+        }
+    }
+
+    function addFriend(userId) {
+        fetch('/api/add-friend-by-id', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_id: parseInt(userId)})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showXPPopup(0, '🤝 ' + (data.message || 'İstek gönderildi!'));
+            } else {
+                showXPPopup(0, '❌ ' + (data.message || 'Hata!'));
+            }
+        })
+        .catch(err => {
+            showXPPopup(0, '❌ Bağlantı hatası');
+        });
+    }
+
+    // Escape tuşu
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') document.getElementById('leaderboard-ctx').style.display = 'none';
+        if (e.key === 'Escape') {
+            document.getElementById('leaderboard-ctx').style.display = 'none';
+        }
     });
 </script>
 {% endblock %}

@@ -69,7 +69,7 @@
 
 <div id="leaderboard-ctx" class="ctx-menu" style="display:none; position: fixed; z-index: 1000;">
     <a href="#" id="ctx-profile-link" class="ctx-item">👤 Profile Git</a>
-    <form id="ctx-add-friend-form" action="{{ url_for('add_friend') }}" method="POST">
+    <form id="ctx-add-friend-form" action="{{ url_for('add_friend_by_id') }}" method="POST">
         <input type="hidden" name="friend_id" id="ctx-friend-id">
         <button type="submit" class="ctx-item">➕ Arkadaş Ekle</button>
     </form>

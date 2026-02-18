@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sıralama Tablosu{% endblock %}
+{% block title %}Liderlik Tablosu{% endblock %}
 
 {% block content %}
 <div class="lb-wrapper">
@@ -76,26 +76,18 @@
 </div>
 
 <style>
+    /* Tasarım detayları yukarıdaki ile aynıdır... */
     .lb-wrapper { max-width: 700px; margin: 30px auto; padding: 0 15px; }
     .lb-header-box { text-align: center; margin-bottom: 20px; padding: 30px !important; border-bottom: 3px solid var(--accent) !important; }
-    .lb-header-box h1 { color: var(--accent); font-weight: 800; letter-spacing: 2px; }
-    .lb-header-box p { color: var(--text2); font-size: 0.9rem; }
     .lb-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
     .lb-tab-btn { flex: 1; padding: 12px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-weight: bold; cursor: pointer; border-radius: 8px; transition: all 0.3s; }
-    .lb-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
     .lb-tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 15px rgba(200, 155, 60, 0.3); }
     .lb-pane { display: none; }
     .lb-pane.active { display: block; animation: slideUp 0.4s ease; }
     .lb-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid var(--border); transition: 0.2s; cursor: pointer; }
     .lb-me { background: rgba(200, 155, 60, 0.05); border-left: 3px solid var(--accent); }
     .top-three { background: rgba(200, 155, 60, 0.05); }
-    .top-three .lb-pos { color: var(--accent); font-size: 1.4rem; }
-    .lb-pos { width: 50px; font-weight: 800; color: var(--text2); font-style: italic; }
-    .lb-info { flex: 1; display: flex; align-items: center; gap: 15px; }
-    .lb-img { width: 35px; height: 35px; border-radius: 50%; border: 1px solid var(--accent); object-fit: cover; }
-    .lb-name { font-weight: 600; color: var(--text); }
     .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.1rem; }
-    .lb-stat span { font-size: 0.7rem; color: var(--text2); margin-left: 3px; }
     .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-style: italic; }
     @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
@@ -108,7 +100,6 @@
         event.currentTarget.classList.add('active');
     }
 
-    // SAĞ TIK MANTIĞI
     document.addEventListener('contextmenu', function(e) {
         const row = e.target.closest('.lb-item');
         if (row) {

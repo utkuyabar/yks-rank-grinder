@@ -613,24 +613,6 @@ def deneme():
         check_achievements(session['user_id']);db_commit();flash(f'+{lp} LP','success');return redirect(url_for('deneme'))
     hist=db_fetchall('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date DESC LIMIT 20',(session['user_id'],))
     return render_template('deneme.html',user=u,history=hist)
-    
-@app.route('/add_friend/<int:friend_id>', methods=['POST'])
-@login_required
-def add_friend(friend_id):
-    if friend_id == session['user_id']:
-        return jsonify({'message': 'Kendini ekleyemezsin!'}), 400
-    
-    # Zaten arkadaş mı kontrol et
-    check = db_fetchone('SELECT id FROM friendships WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)', 
-                       (session['user_id'], friend_id, friend_id, session['user_id']))
-    
-    if check:
-        return jsonify({'message': 'Zaten bir bağlantınız var!'})
-    
-    db_execute('INSERT INTO friendships (user_id, friend_id, status) VALUES (?, ?, ?)', 
-               (session['user_id'], friend_id, 'pending'))
-    
-    return jsonify({'message': 'Arkadaşlık isteği gönderildi!'})
 
 @app.route('/profile', methods=['GET','POST'])
 @login_required
@@ -689,22 +671,6 @@ def friends():
     inc=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.sender_id WHERE f.receiver_id=? AND f.status='pending'",(session['user_id'],))
     out=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.receiver_id WHERE f.sender_id=? AND f.status='pending'",(session['user_id'],))
     return render_template('friends.html',user=u,rank=get_rank(u['total_lp']),friends=fr,incoming=inc,outgoing=out)
-
-@app.route('/api/add-friend', methods=['POST'])
-@login_required
-def add_friend():
-    un=request.get_json().get('username','').strip()
-    if not un:return jsonify(success=False,message='İsim gir.')
-    t=db_fetchone('SELECT id FROM users WHERE username=?',(un,))
-    if not t:return jsonify(success=False,message='Bulunamadı.')
-    if t['id']==session['user_id']:return jsonify(success=False,message='Kendini ekleyemezsin 😄')
-    ex=db_fetchone('SELECT * FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',(session['user_id'],t['id'],t['id'],session['user_id']))
-    if ex:
-        if ex['status']=='accepted':return jsonify(success=False,message='Zaten arkadaşsınız!')
-        return jsonify(success=False,message='İstek mevcut.')
-    db_execute("INSERT INTO friendships(sender_id,receiver_id,status) VALUES(?,?,'pending')",(session['user_id'],t['id']))
-    add_notification(t['id'],'friend_request',f'📩 {session["username"]} arkadaşlık isteği!','🤝');db_commit()
-    return jsonify(success=True,message=f'{un} kullanıcısına istek gönderildi! 🤝')
 
 @app.route('/api/add-friend-by-id', methods=['POST'])
 @login_required

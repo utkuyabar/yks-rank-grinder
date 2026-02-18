@@ -732,12 +732,11 @@ def remove_friend():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    # Giriş yapan kullanıcıyı al
+    # Mevcut kullanıcıyı al
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    # Liderlik tabloları verileri
+    # Sıralama listelerini çek
     global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
-    
     friends_lb = db_fetchall('''
         SELECT u.username, u.total_lp, u.profile_photo FROM users u 
         JOIN friendships f ON (f.user_id=? AND f.friend_id=u.id) OR (f.friend_id=? AND f.user_id=u.id)
@@ -776,19 +775,21 @@ def leaderboard():
     all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
     my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
 
-    # HTML'in beklediği profil verilerini 'u' (mevcut kullanıcı) üzerinden ata
-    target_rank = get_rank(u['total_lp'])
-    earned_achievements = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
-    earned_ids = [row['achievement_id'] for row in earned_achievements]
+    # --- HATA ÇÖZÜCÜ TANIMLAMALAR ---
+    tr = get_rank(u['total_lp'])
+    # Veritabanından başarımları çek (hata vermemesi için boş liste kontrolü ile)
+    e_ach = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
+    e_ids = [row['achievement_id'] for row in e_ach] if e_ach else []
 
+    # HTML'e gönderilecek isimlerin tam eşleştiğinden emin oluyoruz
     return render_template('leaderboard.html', 
                            user=u, 
-                           target=u, 
-                           target_rank=target_rank,
-                           earned_ids=earned_ids,
-                           achievements=ACHIEVEMENT_LIST,
-                           all_ranks=RANKS,
-                           rank=target_rank, 
+                           target=u, # HTML 'target' bekliyor
+                           target_rank=tr, # HTML 'target_rank' bekliyor
+                           earned_ids=e_ids, 
+                           achievements=ACHIEVEMENT_LIST if 'ACHIEVEMENT_LIST' in globals() else [],
+                           all_ranks=RANKS if 'RANKS' in globals() else [],
+                           rank=tr, 
                            global_lb=global_lb, 
                            friends_lb=friends_lb, 
                            today_lb=today_lb, 

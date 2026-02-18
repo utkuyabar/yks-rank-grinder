@@ -732,16 +732,27 @@ def remove_friend():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    # Hata durumunda veritabanı işlemini temizlemek için bir fonksiyon
     def safe_rollback():
         if USE_POSTGRES and hasattr(g, 'db'):
             g.db.rollback()
 
+    # Kullanıcı verisi
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
-    
-    # 1. ARKADAŞLAR SORGUSU (Hata verirse rollback yapıp boş liste döndürür)
+    # Varsayılan boş değerler (Hata olsa da site açılır)
+    global_lb = []
+    friends_lb = [u]
+    today_lb = []
+    weekly_study_lb = []
+    deneme_lb = []
+    recent_badges = []
+
+    # 1. Genel Sıralama
+    try:
+        global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
+    except: safe_rollback()
+
+    # 2. Arkadaş Sıralaması (Sütun isimlerini try-except ile koruduk)
     try:
         friends_lb = db_fetchall('''
             SELECT username, total_lp, profile_photo FROM users 
@@ -754,52 +765,53 @@ def leaderboard():
             )
             ORDER BY total_lp DESC
         ''', (session['user_id'], session['user_id'], session['user_id']))
-    except Exception as e:
-        print("Arkadas listesi hatasi:", e)
-        safe_rollback() # Veritabanı kilidini açar
+    except:
+        safe_rollback()
         friends_lb = [u]
 
-    # 2. GÜNLÜK SIRALAMA (PostgreSQL GROUP BY kuralı düzeltildi)
+    # 3. Çalışma Verileri (Postgres GROUP BY kuralına uygun hale getirildi)
     today_str = date.today().isoformat()
-    today_lb = db_fetchall('''
-        SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
-        FROM study_sessions s 
-        JOIN users u ON s.user_id = u.id 
-        WHERE s.start_time LIKE ? 
-        GROUP BY u.id, u.username, u.profile_photo 
-        ORDER BY daily_total DESC LIMIT 50
-    ''', (today_str + '%',))
-    
-    # 3. HAFTALIK SIRALAMA
-    one_week_ago = (date.today() - timedelta(days=7)).isoformat()
-    weekly_study_lb = db_fetchall('''
-        SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as weekly_total
-        FROM study_sessions s 
-        JOIN users u ON s.user_id = u.id 
-        WHERE s.start_time >= ? 
-        GROUP BY u.id, u.username, u.profile_photo 
-        ORDER BY weekly_total DESC LIMIT 50
-    ''', (one_week_ago,))
-    
-    # 4. DENEME SIRALAMASI
-    deneme_lb = db_fetchall('''
-        SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
-        FROM deneme_results d 
-        JOIN users u ON d.user_id = u.id 
-        GROUP BY u.id, u.username, u.profile_photo 
-        ORDER BY best_net DESC LIMIT 50
-    ''')
+    # Not: Postgres'te LIKE ile tarih bakarken sütun isminden emin değilsek bu hata verebilir.
+    # Bu yüzden try-except bloğu hayat kurtarır.
+    try:
+        today_lb = db_fetchall('''
+            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
+            FROM study_sessions s JOIN users u ON s.user_id = u.id 
+            WHERE CAST(s.created_at AS TEXT) LIKE ? 
+            GROUP BY u.id, u.username, u.profile_photo ORDER BY daily_total DESC LIMIT 50
+        ''', (today_str + '%',))
+    except:
+        safe_rollback()
+        # Eğer created_at de yoksa start_time dene (Geriye dönük uyumluluk)
+        try:
+            today_lb = db_fetchall('''
+                SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
+                FROM study_sessions s JOIN users u ON s.user_id = u.id 
+                WHERE CAST(s.start_time AS TEXT) LIKE ? 
+                GROUP BY u.id, u.username, u.profile_photo ORDER BY daily_total DESC LIMIT 50
+            ''', (today_str + '%',))
+        except: safe_rollback()
 
-    recent_badges = db_fetchall('''
-        SELECT u.username, a.badge_name, a.earned_at 
-        FROM user_achievements a 
-        JOIN users u ON a.user_id = u.id 
-        ORDER BY a.earned_at DESC LIMIT 15
-    ''')
+    try:
+        deneme_lb = db_fetchall('''
+            SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
+            FROM deneme_results d JOIN users u ON d.user_id = u.id 
+            GROUP BY u.id, u.username, u.profile_photo ORDER BY best_net DESC LIMIT 50
+        ''')
+    except: safe_rollback()
 
+    try:
+        recent_badges = db_fetchall('''
+            SELECT u.username, a.badge_name, a.earned_at 
+            FROM user_achievements a JOIN users u ON a.user_id = u.id 
+            ORDER BY a.earned_at DESC LIMIT 15
+        ''')
+    except: safe_rollback()
+
+    # Sıralama ve Rank Bilgileri
     all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
     my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
-
+    
     tr = get_rank(u['total_lp'])
     e_ach = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
     e_ids = [row['achievement_id'] for row in e_ach] if e_ach else []

@@ -738,37 +738,32 @@ def leaderboard():
 
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    # 1. KATEGORİ: RANK/LP (Toplam LP'ye göre)
+    # 1. RANK SIRALAMASI (Toplam LP)
     global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 50')
 
-    # 2. KATEGORİ: HAFTALIK ÇALIŞMA (Son 7 günde en çok çalışanlar)
-    one_week_ago = (date.today() - timedelta(days=7)).isoformat()
+    # 2. HAFTALIK ÇALIŞMA (Son 7 gün)
     weekly_study_lb = []
     try:
-        # created_at veya start_time sütununa göre bakıyoruz
+        one_week_ago = (date.today() - timedelta(days=7)).isoformat()
+        # Senin tablona göre created_at kullandım
         weekly_study_lb = db_fetchall('''
-            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as weekly_total
-            FROM study_sessions s 
-            JOIN users u ON s.user_id = u.id 
-            WHERE s.created_at >= ? 
-            GROUP BY u.id, u.username, u.profile_photo 
-            ORDER BY weekly_total DESC LIMIT 50
+            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as total_min
+            FROM study_sessions s JOIN users u ON s.user_id = u.id 
+            WHERE s.created_at >= ? GROUP BY u.id, u.username, u.profile_photo 
+            ORDER BY total_min DESC LIMIT 50
         ''', (one_week_ago,))
-    except:
-        safe_rollback()
+    except: safe_rollback()
 
-    # 3. KATEGORİ: EN İYİ DENEME (Son deneme netlerine göre)
+    # 3. DENEME SIRALAMASI (En iyi Net)
     deneme_lb = []
     try:
         deneme_lb = db_fetchall('''
             SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
-            FROM deneme_results d 
-            JOIN users u ON d.user_id = u.id 
+            FROM deneme_results d JOIN users u ON d.user_id = u.id 
             GROUP BY u.id, u.username, u.profile_photo 
             ORDER BY best_net DESC LIMIT 50
         ''')
-    except:
-        safe_rollback()
+    except: safe_rollback()
 
     tr = get_rank(u['total_lp'])
     return render_template('leaderboard.html', 

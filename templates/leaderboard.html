@@ -2,82 +2,127 @@
 {% block title %}Liderlik Tablosu{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="text-center mb-4">🏆 Sıralamalar</h1>
+<div class="lb-wrapper">
+    <div class="lb-header-box card">
+        <h1>🏆 SIRALAMA MERKEZİ</h1>
+        <p>Zirveye giden yolda rakiplerini takip et.</p>
+    </div>
 
-    <ul class="nav nav-pills nav-justified mb-4" id="lbTabs" role="tablist">
-        <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#rank-tab">⭐ Rank/LP</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#study-tab">⏳ Haftalık Çalışma</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#deneme-tab">📝 Deneme Neti</button>
-        </li>
-    </ul>
+    <div class="lb-tabs">
+        <button class="lb-tab-btn active" onclick="showLB('rank')">⭐ RANK</button>
+        <button class="lb-tab-btn" onclick="showLB('study')">⏳ SÜRE</button>
+        <button class="lb-tab-btn" onclick="showLB('deneme')">📝 DENEME</button>
+    </div>
 
-    <div class="tab-content border p-3 rounded bg-white shadow-sm">
-        <div class="tab-pane fade show active" id="rank-tab">
-            <h3>En Yüksek LP'ye Sahip Olanlar</h3>
-            <table class="table align-middle">
-                <thead><tr><th>#</th><th>Kullanıcı</th><th>LP</th></tr></thead>
-                <tbody>
-                    {% for p in global_lb %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>
-                            <img src="{{ get_photo_url(p['profile_photo']) }}" class="rounded-circle me-2" width="30" height="30" onerror="this.src='/static/img/default_pp.png'">
-                            {{ p['username'] }}
-                        </td>
-                        <td><strong>{{ p['total_lp'] }}</strong></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <div class="lb-body card">
+        
+        <div id="lb-rank" class="lb-pane active">
+            {% if global_lb %}
+                {% for p in global_lb %}
+                <div class="lb-item {% if loop.index <= 3 %}top-three{% endif %}">
+                    <div class="lb-pos">#{{ loop.index }}</div>
+                    <div class="lb-info">
+                        <img src="{{ get_photo_url(p['profile_photo']) }}" class="lb-img" onerror="this.src='/static/img/default_pp.png'">
+                        <span class="lb-name">{{ p['username'] }}</span>
+                    </div>
+                    <div class="lb-stat">{{ p['total_lp'] }} <span>LP</span></div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="lb-empty">Henüz kimse rank kazanmamış...</div>
+            {% endif %}
         </div>
 
-        <div class="tab-pane fade" id="study-tab">
-            <h3>Haftalık Çalışma Şampiyonları (Dakika)</h3>
-            <table class="table align-middle">
-                <thead><tr><th>#</th><th>Kullanıcı</th><th>Süre</th></tr></thead>
-                <tbody>
-                    {% for p in weekly_study_lb %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ p['username'] }}</td>
-                        <td><span class="badge bg-success">{{ p['weekly_total'] }} dk</span></td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="3" class="text-center">Henüz veri yok.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div id="lb-study" class="lb-pane">
+            {% if weekly_study_lb %}
+                {% for p in weekly_study_lb %}
+                <div class="lb-item">
+                    <div class="lb-pos">#{{ loop.index }}</div>
+                    <div class="lb-info">
+                        <span class="lb-name">{{ p['username'] }}</span>
+                    </div>
+                    <div class="lb-stat">{{ p['total_min'] }} <span>dk</span></div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="lb-empty">Bu hafta henüz kimse çalışmamış...</div>
+            {% endif %}
         </div>
 
-        <div class="tab-pane fade" id="deneme-tab">
-            <h3>En Yüksek Deneme Netleri</h3>
-            <table class="table align-middle">
-                <thead><tr><th>#</th><th>Kullanıcı</th><th>En İyi Net</th></tr></thead>
-                <tbody>
-                    {% for p in deneme_lb %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ p['username'] }}</td>
-                        <td><span class="badge bg-primary">{{ p['best_net'] }} Net</span></td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="3" class="text-center">Henüz veri yok.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div id="lb-deneme" class="lb-pane">
+            {% if deneme_lb %}
+                {% for p in deneme_lb %}
+                <div class="lb-item">
+                    <div class="lb-pos">#{{ loop.index }}</div>
+                    <div class="lb-info">
+                        <span class="lb-name">{{ p['username'] }}</span>
+                    </div>
+                    <div class="lb-stat">{{ p['best_net'] }} <span>Net</span></div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="lb-empty">Henüz deneme kaydı girilmemiş...</div>
+            {% endif %}
         </div>
+
     </div>
 </div>
 
 <style>
-    .nav-pills .nav-link.active { background-color: #6c5ce7; }
-    .nav-link { color: #2d3436; font-weight: bold; }
-    .table img { object-fit: cover; }
+    /* CSS Dosyanla Uyumlu Tasarım */
+    .lb-wrapper { max-width: 700px; margin: 30px auto; padding: 0 15px; }
+    
+    .lb-header-box { text-align: center; margin-bottom: 20px; padding: 30px !important; border-bottom: 3px solid var(--accent) !important; }
+    .lb-header-box h1 { color: var(--accent); font-weight: 800; letter-spacing: 2px; }
+    .lb-header-box p { color: var(--text2); font-size: 0.9rem; }
+
+    .lb-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+    .lb-tab-btn { 
+        flex: 1; padding: 12px; border: 1px solid var(--border); 
+        background: var(--bg2); color: var(--text); font-weight: bold; 
+        cursor: pointer; border-radius: 8px; transition: all 0.3s;
+    }
+    .lb-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .lb-tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 15px rgba(200, 155, 60, 0.3); }
+
+    .lb-pane { display: none; }
+    .lb-pane.active { display: block; animation: slideUp 0.4s ease; }
+
+    .lb-item { 
+        display: flex; align-items: center; padding: 15px; 
+        border-bottom: 1px solid var(--border); transition: 0.2s; 
+    }
+    .lb-item:last-child { border-bottom: none; }
+    .lb-item:hover { background: rgba(255,255,255,0.03); }
+
+    .top-three { background: rgba(200, 155, 60, 0.05); }
+    .top-three .lb-pos { color: var(--accent); font-size: 1.4rem; }
+
+    .lb-pos { width: 50px; font-weight: 800; color: var(--text2); font-style: italic; }
+    .lb-info { flex: 1; display: flex; align-items: center; gap: 15px; }
+    .lb-img { width: 35px; height: 35px; border-radius: 50%; border: 1px solid var(--accent); object-fit: cover; }
+    .lb-name { font-weight: 600; color: var(--text); }
+    .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.1rem; }
+    .lb-stat span { font-size: 0.7rem; color: var(--text2); margin-left: 3px; }
+
+    .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-style: italic; }
+
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
+
+<script>
+    function showLB(type) {
+        // Panelleri gizle
+        document.querySelectorAll('.lb-pane').forEach(p => p.classList.remove('active'));
+        // Butonları pasif yap
+        document.querySelectorAll('.lb-tab-btn').forEach(b => b.classList.remove('active'));
+        
+        // Seçileni aktif yap
+        document.getElementById('lb-' + type).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+</script>
 {% endblock %}

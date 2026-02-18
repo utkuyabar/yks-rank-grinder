@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}⏱️ {{topic}}{% endblock %}
+{% block content %}
+<div class="timer-page">
+    <a href="{{url_for('study_subject',subject=subject)}}" class="btn btn-sm btn-back">← {{subject}}</a>
+
+    <div class="mode-switcher">
+        <button class="mode-btn active" id="btnModeFree" onclick="switchMode('free')">⏱️ Serbest</button>
+        <button class="mode-btn" id="btnModePomo" onclick="switchMode('pomodoro')">🍅 Pomodoro</button>
+    </div>
+
+    <div class="timer-card">
+        <div class="timer-subject">{{icon}} {{subject}}</div>
+        <div class="timer-topic">{{topic}}</div>
+
+        <div class="pomo-info" id="pomoInfo" style="display:none">
+            <span class="pomo-state" id="pomoState">ÇALIŞMA</span>
+            <span class="pomo-cycle">Döngü: <strong id="pomoCycleNum">0</strong></span>
+        </div>
+
+        <div class="timer-circle-wrap" id="circleWrap" style="display:none">
+            <svg class="timer-circle" viewBox="0 0 200 200">
+                <circle class="tc-bg" cx="100" cy="100" r="90"/>
+                <circle class="tc-fill" id="circFill" cx="100" cy="100" r="90"
+                        stroke-dasharray="565.48" stroke-dashoffset="0"/>
+            </svg>
+            <div class="timer-circle-text" id="circleTime">25:00</div>
+        </div>
+
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+        <div class="timer-lp" id="timerLP">+0 LP</div>
+
+        <div class="timer-controls">
+            <button class="btn btn-primary btn-lg" id="btnStart" onclick="startTimer()">▶ Başlat</button>
+            <button class="btn btn-warning btn-lg" id="btnPause" onclick="pauseTimer()" style="display:none">⏸ Duraklat</button>
+            <button class="btn btn-success btn-lg" id="btnResume" onclick="resumeTimer()" style="display:none">▶ Devam</button>
+            <button class="btn btn-danger btn-lg" id="btnStop" onclick="stopTimer()" style="display:none">⏹ Bitir</button>
+        </div>
+        <div class="timer-status" id="timerStatus">Hazır</div>
+    </div>
+
+    <!-- Sonuç Modal -->
+    <div class="modal-overlay" id="resultModal" style="display:none">
+        <div class="modal-card result-modal">
+            <h2>🎉 Tamamlandı!</h2>
+            <div class="result-details">
+                <div class="result-item"><span>Süre</span><strong id="resultTime">—</strong></div>
+                <div class="result-item" id="resultPomoRow" style="display:none">
+                    <span>Pomodoro</span><strong id="resultPomo">—</strong></div>
+                <div class="result-item"><span>LP</span><strong id="resultLP" class="accent">—</strong></div>
+                <div class="result-item"><span>Rank</span>
+                    <div class="result-rank-wrap">
+                        <img id="resultRankImg" src="" class="result-rank-img" style="display:none">
+                        <strong id="resultRank">—</strong>
+                    </div>
+                </div>
+            </div>
+            <a href="{{url_for('study_subject',subject=subject)}}" class="btn btn-primary btn-full">Konulara Dön</a>
+            <a href="{{url_for('dashboard')}}" class="btn btn-secondary btn-full" style="margin-top:8px">Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SUBJECT='{{subject}}',TOPIC='{{topic}}';
+const POMO_WORK={{pomo_work}},POMO_BREAK={{pomo_break}};
+const CIRC=2*Math.PI*90;
+let mode='free',seconds=0,interval=null,running=false;
+let pomoPhase='work',pomoRem=POMO_WORK*60,pomoCycles=0,pomoTotalWork=0;
+
+function switchMode(m){if(running)return;mode=m;
+    document.getElementById('btnModeFree').classList.toggle('active',m==='free');
+    document.getElementById('btnModePomo').classList.toggle('active',m==='pomodoro');
+    document.getElementById('pomoInfo').style.display=m==='pomodoro'?'flex':'none';
+    document.getElementById('circleWrap').style.display=m==='pomodoro'?'block':'none';
+    document.getElementById('timerDisplay').style.display=m==='free'?'block':'none';
+    if(m==='pomodoro'){pomoRem=POMO_WORK*60;updateCircle()}}
+
+function fmt(s){return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function fmtMin(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+
+function updateCircle(){
+    const total=pomoPhase==='work'?POMO_WORK*60:POMO_BREAK*60;
+    const pct=pomoRem/total;
+    document.getElementById('circFill').style.strokeDashoffset=CIRC*(1-pct);
+    document.getElementById('circleTime').textContent=fmtMin(pomoRem);
+    const st=document.getElementById('pomoState');
+    if(pomoPhase==='work'){st.textContent='📖 ÇALIŞMA';st.className='pomo-state pomo-work';
+        document.getElementById('circFill').style.stroke='var(--accent)'}
+    else{st.textContent='☕ MOLA';st.className='pomo-state pomo-break-state';
+        document.getElementById('circFill').style.stroke='var(--green)'}
+    document.getElementById('pomoCycleNum').textContent=pomoCycles}
+
+function calcLP(){
+    const mins=Math.floor(seconds/60);
+    return(mins*2)+(mode==='pomodoro'?pomoCycles*15:0)}
+
+function tick(){
+    if(mode==='free'){seconds++;
+        document.getElementById('timerDisplay').textContent=fmt(seconds);
+        document.getElementById('timerLP').textContent=`+${calcLP()} LP`;
+        // Her 5 dakikada mini dopamin
+        if(seconds>0&&seconds%300===0)showXPPopup(10,'5 dakika daha! 💪');
+    }else{
+        pomoRem--;
+        if(pomoPhase==='work'){seconds++;pomoTotalWork++}
+        document.getElementById('timerLP').textContent=`+${calcLP()} LP`;
+        updateCircle();
+        if(pomoRem<=0){
+            if(pomoPhase==='work'){
+                pomoCycles++;playSound();
+                showXPPopup(15,`🍅 Pomodoro #${pomoCycles} tamamlandı!`);
+                pomoPhase='break';pomoRem=POMO_BREAK*60;
+            }else{pomoPhase='work';pomoRem=POMO_WORK*60;playSound()}
+            updateCircle()}}}
+
+function playSound(){try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;o.type='sine';g.gain.value=.3;o.start();o.stop(c.currentTime+.2);setTimeout(()=>{const o2=c.createOscillator();o2.connect(g);o2.frequency.value=1100;o2.type='sine';o2.start();o2.stop(c.currentTime+.2)},250)}catch(e){}}
+
+function startTimer(){running=true;
+    document.getElementById('btnStart').style.display='none';
+    document.getElementById('btnPause').style.display='inline-block';
+    document.getElementById('btnStop').style.display='inline-block';
+    document.getElementById('timerStatus').textContent='🟢 Çalışılıyor...';
+    document.getElementById('timerStatus').className='timer-status active';
+    document.querySelectorAll('.mode-btn').forEach(b=>b.disabled=true);
+    interval=setInterval(tick,1000)}
+
+function pauseTimer(){running=false;clearInterval(interval);
+    document.getElementById('btnPause').style.display='none';
+    document.getElementById('btnResume').style.display='inline-block';
+    document.getElementById('timerStatus').textContent='⏸️ Duraklatıldı';
+    document.getElementById('timerStatus').className='timer-status paused'}
+
+function resumeTimer(){running=true;
+    document.getElementById('btnResume').style.display='none';
+    document.getElementById('btnPause').style.display='inline-block';
+    document.getElementById('timerStatus').textContent='🟢 Çalışılıyor...';
+    document.getElementById('timerStatus').className='timer-status active';
+    interval=setInterval(tick,1000)}
+
+function stopTimer(){clearInterval(interval);running=false;
+    const totalWork=Math.floor(seconds/60);
+    if(totalWork<1){alert('En az 1 dakika!');return}
+
+    fetch('/api/save-session',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({subject:SUBJECT,topic:TOPIC,duration_minutes:totalWork,
+            is_pomodoro:mode==='pomodoro'?1:0,pomodoro_cycles:pomoCycles})})
+    .then(r=>r.json()).then(data=>{
+        if(data.success){
+            // Sonuç modal
+            document.getElementById('resultTime').textContent=fmt(seconds);
+            document.getElementById('resultLP').textContent=`+${data.lp_earned} LP`;
+            document.getElementById('resultRank').textContent=data.rank;
+            if(data.rank_img){const img=document.getElementById('resultRankImg');
+                img.src='/static/img/ranks/'+data.rank_img;img.style.display='inline'}
+            if(mode==='pomodoro'){
+                document.getElementById('resultPomoRow').style.display='flex';
+                document.getElementById('resultPomo').textContent=pomoCycles+' döngü'}
+
+            // LP Dopamin popup
+            showXPPopup(data.lp_earned,'Çalışma tamamlandı! 🎉');
+
+            // Rank up kutlama
+            if(data.rank_up)setTimeout(()=>showRankUp(data.new_rank_name,data.rank_img),500);
+
+            // Başarımlar
+            if(data.new_achievements)data.new_achievements.forEach((a,i)=>
+                setTimeout(()=>showAchievement(a.name,a.icon,a.lp),1000+i*1500));
+
+            document.getElementById('resultModal').style.display='flex';
+        }else alert(data.message);
+    }).catch(()=>alert('Bağlantı hatası!'));
+
+    document.getElementById('btnPause').style.display='none';
+    document.getElementById('btnResume').style.display='none';
+    document.getElementById('btnStop').style.display='none';
+    document.getElementById('timerStatus').textContent='✅ Kaydedildi';
+    document.getElementById('timerStatus').className='timer-status done'}
+
+window.addEventListener('beforeunload',e=>{if(running){e.preventDefault();e.returnValue=''}});
+</script>
+{% endblock %}

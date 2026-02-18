@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}🏆 Sıralama{% endblock %}
+{% block content %}
+<h2 class="page-title">🏆 Sıralama Tablosu</h2>
+<p class="page-sub">Senin sıran: <strong class="accent">#{{my_position}}</strong></p>
+
+<!-- Tab Switcher -->
+<div class="tab-switcher">
+    <button class="tab-btn active" onclick="switchTab('global',this)">🌍 Global</button>
+    <button class="tab-btn" onclick="switchTab('friends',this)">👥 Arkadaşlar</button>
+    <button class="tab-btn" onclick="switchTab('today',this)">📅 Bugün</button>
+</div>
+
+<!-- Global -->
+<div class="tab-content active" id="tab-global">
+    <div class="lb-list">
+        {% for u in global_lb %}
+        {% set r = get_rank(u['total_lp']) %}
+        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}} {{'lb-top3' if loop.index<=3}}">
+            <div class="lb-pos">
+                {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}#{{loop.index}}{% endif %}
+            </div>
+            <div class="lb-avatar">
+                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
+                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
+                {% else %}
+                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
+                {% endif %}
+            </div>
+            <div class="lb-info">
+                <div class="lb-name">
+                    {{u['username']}}
+                    {% if u['id']==session['user_id'] %}<span class="lb-you">(Sen)</span>{% endif %}
+                </div>
+                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
+            </div>
+            <div class="lb-stats">
+                <div class="lb-lp">{{u['total_lp']}} LP</div>
+                <div class="lb-study muted">{{u['total_study']//60}}s çalışma</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Arkadaşlar -->
+<div class="tab-content" id="tab-friends" style="display:none">
+    {% if friends_lb %}
+    <div class="lb-list">
+        {% for u in friends_lb %}
+        {% set r = get_rank(u['total_lp']) %}
+        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}">
+            <div class="lb-pos">#{{loop.index}}</div>
+            <div class="lb-avatar">
+                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
+                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
+                {% else %}
+                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
+                {% endif %}
+            </div>
+            <div class="lb-info">
+                <div class="lb-name">{{u['username']}} {% if u['id']==session['user_id'] %}<span class="lb-you">(Sen)</span>{% endif %}</div>
+                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
+            </div>
+            <div class="lb-stats">
+                <div class="lb-lp">{{u['total_lp']}} LP</div>
+                <div class="lb-study muted">{{u['total_study']//60}}s</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><p class="muted center">Arkadaş ekle ve burada yarışın! 🤝</p>
+    <a href="{{url_for('friends')}}" class="btn btn-primary btn-sm" style="margin-top:12px">Arkadaş Ekle</a></div>
+    {% endif %}
+</div>
+
+<!-- Bugün -->
+<div class="tab-content" id="tab-today" style="display:none">
+    {% if today_lb %}
+    <div class="lb-list">
+        {% for u in today_lb %}
+        {% set r = get_rank(u['total_lp']) %}
+        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}">
+            <div class="lb-pos">#{{loop.index}}</div>
+            <div class="lb-avatar">
+                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
+                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
+                {% else %}
+                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
+                {% endif %}
+            </div>
+            <div class="lb-info">
+                <div class="lb-name">{{u['username']}}</div>
+                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
+            </div>
+            <div class="lb-stats">
+                <div class="lb-lp">{{u['today_mins']}} dk</div>
+                <div class="lb-study muted">bugün</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><p class="muted center">Bugün henüz kimse çalışmamış. İlk sen ol! 🚀</p></div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tab,btn){
+    document.querySelectorAll('.tab-content').forEach(e=>e.style.display='none');
+    document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+    document.getElementById('tab-'+tab).style.display='block';
+    btn.classList.add('active');
+}
+</script>
+{% endblock %}

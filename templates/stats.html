@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}İstatistikler{% endblock %}
+{% block content %}
+<h2 class="page-title">📈 Detaylı İstatistikler</h2>
+
+<div class="grid grid-3">
+    <div class="card stat-card">
+        <div class="rank-img-sm-wrap">
+            <img src="{{ url_for('static', filename='img/ranks/' + rank['img']) }}"
+                 class="rank-img-sm" onerror="this.outerHTML='<span style=font-size:2rem>{{ rank.icon }}</span>'">
+        </div>
+        <div class="stat-value" style="color:{{ rank['color'] }}">{{ rank['name'] }}</div>
+        <div class="stat-label">{{ user['total_lp'] }} LP</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value">%{{ goal_pct }}</div>
+        <div class="stat-label">Hedef Karşılama</div>
+    </div>
+    <div class="card stat-card">
+        {% if next_rank %}
+        <div class="stat-icon" style="color:{{ next_rank['color'] }}">{{ next_rank['icon'] }}</div>
+        <div class="stat-value">{{ next_rank['min_lp'] - user['total_lp'] }} LP</div>
+        <div class="stat-label">{{ next_rank['name'] }} için kalan</div>
+        {% else %}
+        <div class="stat-icon">🏆</div>
+        <div class="stat-value">MAX</div>
+        <div class="stat-label">En yüksek rank!</div>
+        {% endif %}
+    </div>
+</div>
+
+{% for subject, data in subj_detail.items() %}
+{% if data['total'] > 0 %}
+<div class="card">
+    <h3>{{ subject_icons.get(subject,'📚') }} {{ subject }}
+        <span class="muted" style="font-size:0.8em">— {{ data['total'] // 60 }}s {{ data['total'] % 60 }}dk</span>
+    </h3>
+    {% for t in data['topics'] %}
+    <div class="dist-row">
+        <span style="flex:2">{{ t['topic'] }}</span>
+        <div class="dist-bar-wrap" style="flex:3">
+            {% set p = (t['t']/data['total']*100)|int if data['total'] else 0 %}
+            <div class="dist-bar" style="width:{{ p }}%"></div>
+        </div>
+        <span class="muted" style="flex:1;text-align:right">{{ t['t'] }}dk</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+{% if deneme_trend %}
+<div class="card">
+    <h3>📈 Deneme Trendi</h3>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Tarih</th><th>Mat</th><th>Fiz</th><th>Kim</th><th>Bio</th><th>Toplam</th></tr></thead>
+            <tbody>
+            {% for d in deneme_trend %}
+            <tr>
+                <td>{{ d['deneme_date'] }}</td>
+                <td>{{ d['mat_net'] }}</td><td>{{ d['fiz_net'] }}</td>
+                <td>{{ d['kim_net'] }}</td><td>{{ d['bio_net'] }}</td>
+                <td><strong>{{ d['total_net'] }}</strong></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if daily_checks %}
+<div class="card">
+    <h3>📅 Günlük Hedef Geçmişi</h3>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Tarih</th><th>Çalışma</th><th>Hedef</th><th>LP</th></tr></thead>
+            <tbody>
+            {% for c in daily_checks %}
+            <tr>
+                <td>{{ c['check_date'] }}</td>
+                <td>{{ c['total_minutes'] }}dk</td>
+                <td>
+                    {% if c['goal_met'] %}<span class="badge badge-success">✅</span>
+                    {% else %}<span class="badge badge-danger">❌</span>{% endif %}
+                </td>
+                <td class="{% if c['lp_change'] >= 0 %}text-green{% else %}text-red{% endif %}">
+                    {{ '+' if c['lp_change']>=0 else '' }}{{ c['lp_change'] }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

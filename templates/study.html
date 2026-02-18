@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ders Seç{% endblock %}
+{% block content %}
+<h2 class="page-title">📚 Ders Seç</h2>
+<p class="page-sub">Hangi dersi çalışmak istiyorsun?</p>
+
+<div class="grid grid-2">
+    {% for subject, topics in subjects.items() %}
+    <a href="{{ url_for('study_subject', subject=subject) }}" class="subject-card">
+        <div class="subject-icon">{{ icons.get(subject, '📚') }}</div>
+        <div class="subject-name">{{ subject }}</div>
+        <div class="subject-count">{{ topics|length }} konu</div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

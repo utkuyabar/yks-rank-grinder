@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<!-- Rank Banner -->
+<div class="rank-banner" style="--rank-color:{{rank['color']}};--rank-glow:{{rank['glow']}}">
+    <div class="rank-badge">
+        <div class="rank-img-wrap">
+            <img src="{{url_for('static',filename='img/ranks/'+rank['img'])}}"
+                 class="rank-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="rank-img-fallback" style="display:none;color:{{rank['color']}}">{{rank['icon']}}</div>
+        </div>
+        <div>
+            <div class="rank-name" style="color:{{rank['color']}}">{{rank['name']}}</div>
+            <div class="rank-lp">{{user['total_lp']}} LP</div>
+        </div>
+    </div>
+    <div class="rank-bar-wrap">
+        {% if next_rank %}
+        <div class="rank-bar-label">Sonraki: {{next_rank['name']}} ({{next_rank['min_lp']}} LP)</div>
+        {% else %}
+        <div class="rank-bar-label">🏆 Zirvedesin!</div>
+        {% endif %}
+        <div class="rank-bar"><div class="rank-bar-fill" style="width:{{rank_progress}}%"></div></div>
+        <div class="rank-bar-pct">%{{rank_progress}}</div>
+    </div>
+    <div class="rank-meta">
+        {% if streak>0 %}<div class="streak-badge">🔥 {{streak}} gün seri!</div>{% endif %}
+        <div class="lb-badge">🏆 #{{lb_position}} / {{total_users}}</div>
+    </div>
+</div>
+
+<!-- Arkadaş İstekleri -->
+{% if pending_requests %}
+<div class="card friend-request-card">
+    <h3>📩 Arkadaşlık İstekleri</h3>
+    <div class="request-list">
+        {% for r in pending_requests %}
+        <div class="request-item" id="req-{{r['id']}}">
+            <span>🤝 <strong>{{r['username']}}</strong> sana arkadaşlık isteği gönderdi</span>
+            <div class="request-actions">
+                <button class="btn btn-sm btn-success" onclick="acceptFriend({{r['id']}})">✅ Kabul</button>
+                <button class="btn btn-sm btn-danger" onclick="rejectFriend({{r['id']}})">❌ Reddet</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Stat Grid -->
+<div class="grid grid-4">
+    <div class="card stat-card glow-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-value">{{today_mins//60}}s {{today_mins%60}}dk</div>
+        <div class="stat-label">Bugün</div>
+        <div class="goal-bar">
+            {% set pct=(today_mins/user['daily_goal_minutes']*100)|int if user['daily_goal_minutes'] else 0 %}
+            {% set pct=[pct,100]|min %}
+            <div class="goal-bar-fill {{'complete' if pct>=100}}" style="width:{{pct}}%"></div>
+        </div>
+        <small class="muted">Hedef: {{user['daily_goal_minutes']//60}}s (%{{pct}})</small>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon">📚</div>
+        <div class="stat-value">{{total_mins//60}}s</div>
+        <div class="stat-label">Toplam Çalışma</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon">🍅</div>
+        <div class="stat-value">{{today_pomodoros}}</div>
+        <div class="stat-label">Bugün Pomodoro</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value text-truncate">{{user['target_university'] or '—'}}</div>
+        <div class="stat-label">Hedef Üniversite</div>
+    </div>
+</div>
+
+<!-- Haftalık + Son Başarımlar -->
+<div class="grid grid-2">
+    <div class="card">
+        <h3>📅 Haftalık Çalışma</h3>
+        <div class="bar-chart">
+            {% set max_m=1 %}{% for d in weekly %}{% if d['mins']>max_m %}{% set max_m=d['mins'] %}{% endif %}{% endfor %}
+            {% for d in weekly %}
+            <div class="bar-col">
+                <div class="bar-value">{{d['mins']}}dk</div>
+                <div class="bar" style="height:{{(d['mins']/max_m*160)|int if max_m else 0}}px"></div>
+                <div class="bar-label">{{d['label']}}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card">
+        <h3>🏅 Son Başarımlar</h3>
+        {% if recent_achievements %}
+        <div class="ach-list">
+            {% for a in recent_achievements %}
+            <div class="ach-item">
+                <span class="ach-item-icon">{{a.get('icon','🏅')}}</span>
+                <div>
+                    <div class="ach-item-name">{{a.get('name','?')}}</div>
+                    <div class="ach-item-desc muted">{{a.get('desc','')}}</div>
+                </div>
+                {% if a.get('lp',0)>0 %}
+                <span class="ach-item-lp accent">+{{a['lp']}} LP</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted center">Henüz başarım yok. Çalışmaya başla!</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ders Dağılımı + Son Deneme -->
+<div class="grid grid-2">
+    <div class="card">
+        <h3>📊 Ders Dağılımı</h3>
+        {% if subj_stats %}
+        {% set total_s=subj_stats|sum(attribute='t') %}
+        {% for s in subj_stats %}
+        <div class="dist-row">
+            <span>{{subject_icons.get(s['subject'],'📚')}} {{s['subject']}}</span>
+            <div class="dist-bar-wrap">
+                <div class="dist-bar" style="width:{{(s['t']/total_s*100)|int if total_s else 0}}%"></div>
+            </div>
+            <span class="muted">{{s['t']}}dk</span>
+        </div>
+        {% endfor %}
+        {% else %}<p class="muted center">Veri yok.</p>{% endif %}
+    </div>
+    <div class="card">
+        <h3>📝 Son Deneme</h3>
+        {% if last_deneme %}
+        <div class="deneme-mini">
+            {% for label,cur,tgt in [('📐 Mat',last_deneme['mat_net'],user['target_mat_net']),('⚡ Fiz',last_deneme['fiz_net'],user['target_fiz_net']),('🧪 Kim',last_deneme['kim_net'],user['target_kim_net']),('🧬 Bio',last_deneme['bio_net'],user['target_bio_net'])] %}
+            <div class="deneme-row"><span>{{label}}</span><strong>{{cur}}</strong><small class="muted">/{{tgt}}</small></div>
+            {% endfor %}
+            <hr class="divider">
+            <div class="deneme-row"><span><strong>Toplam</strong></span><strong>{{last_deneme['total_net']}}</strong></div>
+        </div>
+        {% else %}<p class="muted center">Deneme yok.</p><a href="{{url_for('deneme')}}" class="btn btn-sm">Deneme Gir</a>{% endif %}
+    </div>
+</div>
+
+<!-- Hızlı Erişim -->
+<div class="quick-actions">
+    <a href="{{url_for('study')}}" class="btn btn-primary btn-lg pulse-hover">📚 Çalışmaya Başla</a>
+    <a href="{{url_for('leaderboard')}}" class="btn btn-secondary btn-lg">🏆 Sıralama</a>
+    <a href="{{url_for('friends')}}" class="btn btn-secondary btn-lg">👥 Arkadaşlar</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function acceptFriend(fid){
+    fetch('/api/accept-friend',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({friendship_id:fid})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){document.getElementById('req-'+fid).remove();showXPPopup(50,'Yeni arkadaş! 🤝')}
+    });
+}
+function rejectFriend(fid){
+    fetch('/api/reject-friend',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({friendship_id:fid})})
+    .then(r=>r.json()).then(d=>{if(d.success)document.getElementById('req-'+fid).remove()});
+}
+</script>
+{% endblock %}

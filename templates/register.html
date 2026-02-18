@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Kayıt Ol — YKS Rank Grinder{% endblock %}
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">🎮</div>
+            <h1>YKS RANK GRINDER</h1>
+            <p class="subtitle">Yeni hesap oluştur, maceraya başla!</p>
+        </div>
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label>Kullanıcı Adı <small>(en az 3 karakter)</small></label>
+                <input type="text" name="username" required minlength="3"
+                       placeholder="Benzersiz bir isim seç..." autofocus>
+            </div>
+            <div class="form-group">
+                <label>Şifre <small>(en az 6 karakter)</small></label>
+                <input type="password" name="password" required minlength="6"
+                       placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label>Şifre Tekrar</label>
+                <input type="password" name="password_confirm" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">🚀 Kayıt Ol</button>
+        </form>
+        <p class="auth-footer">
+            Zaten hesabın var mı? <a href="{{ url_for('login') }}">Giriş Yap</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

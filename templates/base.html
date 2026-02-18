@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YKS Rank Grinder{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body data-theme="{{ current_theme }}">
+
+    {% if session.get('user_id') %}
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="{{ url_for('dashboard') }}">🎮 YKS <span class="accent">RANK</span> GRINDER</a>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}" class="nav-link">🏠 Ana Sayfa</a>
+            <a href="{{ url_for('study') }}" class="nav-link">📚 Çalış</a>
+            <a href="{{ url_for('deneme') }}" class="nav-link">📊 Deneme</a>
+            <a href="{{ url_for('leaderboard') }}" class="nav-link">🏆 Sıralama</a>
+            <a href="{{ url_for('friends') }}" class="nav-link">👥 Arkadaşlar</a>
+            <a href="{{ url_for('stats') }}" class="nav-link">📈 İstatistik</a>
+            <a href="{{ url_for('profile') }}" class="nav-link">👤 Profil</a>
+            <button class="nav-link notif-btn" onclick="toggleNotifs()" title="Bildirimler">
+                🔔
+                {% if unread_notifs > 0 %}
+                <span class="notif-badge">{{ unread_notifs }}</span>
+                {% endif %}
+            </button>
+            <button class="nav-link theme-toggle-btn" onclick="openThemeModal()">🎨</button>
+            <a href="{{ url_for('logout') }}" class="nav-link nav-logout">🚪</a>
+        </div>
+        <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('show')">☰</button>
+    </nav>
+
+    <!-- Bildirim Paneli -->
+    <div class="notif-panel" id="notifPanel" style="display:none">
+        <div class="notif-header">
+            <h3>🔔 Bildirimler</h3>
+            <button onclick="toggleNotifs()" class="notif-close">✕</button>
+        </div>
+        <div class="notif-list" id="notifList">
+            <p class="muted center">Yükleniyor...</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- XP Popup Container -->
+    <div id="xpPopupContainer"></div>
+
+    <!-- Rank Up Celebration -->
+    <div class="celebration-overlay" id="celebrationOverlay" style="display:none">
+        <div class="celebration-card">
+            <div class="celebration-particles" id="particles"></div>
+            <h1 class="celebration-title">🎉 RÜTBE ATLADIN!</h1>
+            <img id="celebRankImg" src="" class="celebration-rank-img">
+            <h2 id="celebRankName" class="celebration-rank-name"></h2>
+            <button class="btn btn-primary btn-lg" onclick="closeCelebration()">Devam Et ⚔️</button>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-container">
+            {% for cat, msg in messages %}
+            <div class="flash flash-{{ cat }}">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Tema Modal -->
+    <div class="modal-overlay" id="themeModal" style="display:none" onclick="if(event.target===this)closeThemeModal()">
+        <div class="modal-card theme-modal">
+            <div class="modal-header">
+                <h2>🎨 Tema Seç</h2>
+                <button class="modal-close" onclick="closeThemeModal()">✕</button>
+            </div>
+            <div class="theme-grid">
+                {% for t in all_themes %}
+                <button class="theme-option {% if current_theme==t.id %}active{% endif %}"
+                        onclick="setTheme('{{t.id}}')" data-theme-id="{{t.id}}">
+                    <div class="theme-preview">
+                        <div class="tp-bar" style="background:{{t.preview[0]}}"></div>
+                        <div class="tp-bar" style="background:{{t.preview[1]}}"></div>
+                        <div class="tp-bar" style="background:{{t.preview[2]}}"></div>
+                    </div>
+                    <span class="theme-icon">{{t.icon}}</span>
+                    <span class="theme-name">{{t.name}}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% block scripts %}{% endblock %}
+
+    <script>
+    // Flash otomatik kapat
+    document.querySelectorAll('.flash').forEach(el=>{
+        setTimeout(()=>el.style.opacity='0',4000);
+        setTimeout(()=>el.remove(),4500);
+    });
+
+    // ═══ Tema ═══
+    function openThemeModal(){document.getElementById('themeModal').style.display='flex'}
+    function closeThemeModal(){document.getElementById('themeModal').style.display='none'}
+    function setTheme(id){
+        document.body.setAttribute('data-theme',id);
+        document.querySelectorAll('.theme-option').forEach(e=>e.classList.toggle('active',e.dataset.themeId===id));
+        fetch('/api/set-theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({theme:id})});
+        setTimeout(closeThemeModal,300);
+    }
+
+    // ═══ Bildirimler ═══
+    function toggleNotifs(){
+        const p=document.getElementById('notifPanel');
+        if(p.style.display==='none'){
+            p.style.display='block';
+            loadNotifs();
+        }else p.style.display='none';
+    }
+    function loadNotifs(){
+        fetch('/api/notifications').then(r=>r.json()).then(data=>{
+            const list=document.getElementById('notifList');
+            if(!data.length){list.innerHTML='<p class="muted center">Bildirim yok.</p>';return}
+            list.innerHTML=data.map(n=>`
+                <div class="notif-item ${n.is_read?'':'notif-unread'}">
+                    <span class="notif-icon">${n.icon}</span>
+                    <div class="notif-content">
+                        <p>${n.message}</p>
+                        <small class="muted">${n.created_at}</small>
+                    </div>
+                </div>
+            `).join('');
+            // Badge sıfırla
+            const badge=document.querySelector('.notif-badge');
+            if(badge)badge.remove();
+        });
+    }
+
+    // ═══ XP Popup (Dopamin!) ═══
+    function showXPPopup(lp, message){
+        const container=document.getElementById('xpPopupContainer');
+        const popup=document.createElement('div');
+        popup.className='xp-popup';
+        popup.innerHTML=`
+            <div class="xp-popup-inner">
+                <span class="xp-amount">+${lp} LP</span>
+                <span class="xp-msg">${message||''}</span>
+            </div>
+        `;
+        container.appendChild(popup);
+        setTimeout(()=>popup.classList.add('xp-popup-show'),10);
+        setTimeout(()=>{popup.classList.remove('xp-popup-show');popup.classList.add('xp-popup-hide')},2500);
+        setTimeout(()=>popup.remove(),3000);
+    }
+
+    // ═══ Başarım Popup ═══
+    function showAchievement(name, icon, lp){
+        const container=document.getElementById('xpPopupContainer');
+        const popup=document.createElement('div');
+        popup.className='achievement-popup';
+        popup.innerHTML=`
+            <div class="ach-popup-inner">
+                <span class="ach-icon">${icon}</span>
+                <div>
+                    <div class="ach-title">🏅 Başarım Kazandın!</div>
+                    <div class="ach-name">${name}</div>
+                    ${lp>0?`<div class="ach-lp">+${lp} LP</div>`:''}
+                </div>
+            </div>
+        `;
+        container.appendChild(popup);
+        setTimeout(()=>popup.classList.add('ach-show'),10);
+        setTimeout(()=>{popup.classList.remove('ach-show');popup.classList.add('ach-hide')},4000);
+        setTimeout(()=>popup.remove(),4500);
+    }
+
+    // ═══ Rank Up Kutlama ═══
+    function showRankUp(rankName, rankImg){
+        document.getElementById('celebRankName').textContent=rankName;
+        document.getElementById('celebRankImg').src='/static/img/ranks/'+rankImg;
+        document.getElementById('celebrationOverlay').style.display='flex';
+        createParticles();
+    }
+    function closeCelebration(){
+        document.getElementById('celebrationOverlay').style.display='none';
+    }
+    function createParticles(){
+        const c=document.getElementById('particles');
+        c.innerHTML='';
+        const emojis=['⭐','🌟','✨','💫','🎉','🎊','🏆','💎'];
+        for(let i=0;i<30;i++){
+            const p=document.createElement('span');
+            p.className='particle';
+            p.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+            p.style.left=Math.random()*100+'%';
+            p.style.animationDelay=Math.random()*2+'s';
+            p.style.animationDuration=(2+Math.random()*3)+'s';
+            c.appendChild(p);
+        }
+    }
+    </script>
+</body>
+</html>

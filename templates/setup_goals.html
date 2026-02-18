@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Hedeflerini Belirle{% endblock %}
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card" style="max-width:560px">
+        <div class="auth-header">
+            <div class="auth-logo">🎯</div>
+            <h1>Hedeflerini Belirle</h1>
+            <p class="subtitle">Sana özel rank yolculuğun burada başlıyor!</p>
+        </div>
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label>Günlük Çalışma Hedefi (saat)</label>
+                <input type="number" name="daily_hours" value="6" min="1" max="16" step="0.5" required>
+            </div>
+            <div class="form-group">
+                <label>Hedef Üniversite</label>
+                <input type="text" name="target_university" placeholder="Örn: İTÜ Bilgisayar Müh.">
+            </div>
+            <hr class="divider">
+            <p class="section-label">Hedef AYT Netleri</p>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label>📐 Matematik (0-40)</label>
+                    <input type="number" name="target_mat_net" value="30" min="0" max="40" step="0.25">
+                </div>
+                <div class="form-group half">
+                    <label>⚡ Fizik (0-14)</label>
+                    <input type="number" name="target_fiz_net" value="10" min="0" max="14" step="0.25">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group half">
+                    <label>🧪 Kimya (0-13)</label>
+                    <input type="number" name="target_kim_net" value="10" min="0" max="13" step="0.25">
+                </div>
+                <div class="form-group half">
+                    <label>🧬 Biyoloji (0-13)</label>
+                    <input type="number" name="target_bio_net" value="10" min="0" max="13" step="0.25">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">✅ Kaydet ve Başla</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

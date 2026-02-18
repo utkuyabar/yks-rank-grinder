@@ -1,119 +1,232 @@
 {% extends "base.html" %}
-{% block title %}🏆 Sıralama{% endblock %}
+{% block title %}👥 Arkadaşlar{% endblock %}
 {% block content %}
-<h2 class="page-title">🏆 Sıralama Tablosu</h2>
-<p class="page-sub">Senin sıran: <strong class="accent">#{{my_position}}</strong></p>
 
-<!-- Tab Switcher -->
-<div class="tab-switcher">
-    <button class="tab-btn active" onclick="switchTab('global',this)">🌍 Global</button>
-    <button class="tab-btn" onclick="switchTab('friends',this)">👥 Arkadaşlar</button>
-    <button class="tab-btn" onclick="switchTab('today',this)">📅 Bugün</button>
+<h2 class="page-title">👥 Arkadaşlar</h2>
+
+<!-- Arkadaş Ekle -->
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="friendSearchInput" placeholder="Kullanıcı adı ile ara..." class="friend-input" style="flex:1; min-width:200px;">
+        <button class="btn btn-primary" onclick="searchUser()">🔍 Ara</button>
+    </div>
+    <div id="searchResult" style="margin-top:12px;"></div>
 </div>
 
-<!-- Global -->
-<div class="tab-content active" id="tab-global">
-    <div class="lb-list">
-        {% for u in global_lb %}
-        {% set r = get_rank(u['total_lp']) %}
-        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}} {{'lb-top3' if loop.index<=3}}">
-            <div class="lb-pos">
-                {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}#{{loop.index}}{% endif %}
-            </div>
-            <div class="lb-avatar">
-                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
-                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
-                {% else %}
-                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
-                {% endif %}
-            </div>
-            <div class="lb-info">
-                <div class="lb-name">
-                    {{u['username']}}
-                    {% if u['id']==session['user_id'] %}<span class="lb-you">(Sen)</span>{% endif %}
-                </div>
-                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
-            </div>
-            <div class="lb-stats">
-                <div class="lb-lp">{{u['total_lp']}} LP</div>
-                <div class="lb-study muted">{{u['total_study']//60}}s çalışma</div>
+<!-- Gelen İstekler -->
+{% if incoming %}
+<div class="card" style="margin-bottom:20px; border-left: 3px solid var(--accent);">
+    <h3 style="margin-bottom:14px;">📩 Gelen İstekler <span class="notif-badge" style="position:static;margin-left:6px;">{{incoming|length}}</span></h3>
+    {% for r in incoming %}
+    <div class="friend-req-row" id="inc-{{r['fid']}}">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;">
+            {% if r['profile_photo'] and r['profile_photo'] != 'default.png' %}
+            <img src="{{ url_for('static', filename='uploads/' + r['profile_photo']) }}" class="friend-avatar"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="friend-avatar-ph" style="display:none">{{r['username'][0]|upper}}</div>
+            {% else %}
+            <div class="friend-avatar-ph">{{r['username'][0]|upper}}</div>
+            {% endif %}
+            <div>
+                <a href="{{ url_for('user_profile', user_id=r['uid']) }}" class="friend-username">{{r['username']}}</a>
+                {% set rr = get_rank(r['total_lp']) %}
+                <div class="friend-rank" style="color:{{rr['color']}}">{{rr['icon']}} {{rr['name']}} — {{r['total_lp']}} LP</div>
             </div>
         </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-success" onclick="acceptFriend({{r['fid']}})">✅ Kabul</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectFriend({{r['fid']}})">❌</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Arkadaş Listesi -->
+{% if friends %}
+<div class="card">
+    <h3 style="margin-bottom:16px;">🏆 Arkadaş Sıralaması <span class="muted" style="font-size:.85rem">({{friends|length}} kişi)</span></h3>
+    <div class="friends-lb-list">
+        {% for u in friends %}
+        {% set r = get_rank(u['total_lp']) %}
+        <a href="{{ url_for('user_profile', user_id=u['id']) }}" class="friend-lb-row">
+            <div class="flb-pos">
+                {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}<span class="flb-num">#{{loop.index}}</span>{% endif %}
+            </div>
+            <div class="flb-avatar">
+                {% if u['profile_photo'] and u['profile_photo'] != 'default.png' %}
+                <img src="{{ url_for('static', filename='uploads/' + u['profile_photo']) }}"
+                     class="friend-avatar"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <div class="friend-avatar-ph" style="display:none">{{u['username'][0]|upper}}</div>
+                {% else %}
+                <div class="friend-avatar-ph">{{u['username'][0]|upper}}</div>
+                {% endif %}
+            </div>
+            <div class="flb-info">
+                <div class="flb-name">{{u['username']}}</div>
+                <div class="flb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
+            </div>
+            <div class="flb-lp">
+                <div class="flb-lp-val">{{u['total_lp']}}</div>
+                <div class="flb-lp-lbl muted">LP</div>
+            </div>
+        </a>
         {% endfor %}
     </div>
 </div>
 
-<!-- Arkadaşlar -->
-<div class="tab-content" id="tab-friends" style="display:none">
-    {% if friends_lb %}
-    <div class="lb-list">
-        {% for u in friends_lb %}
-        {% set r = get_rank(u['total_lp']) %}
-        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}">
-            <div class="lb-pos">#{{loop.index}}</div>
-            <div class="lb-avatar">
-                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
-                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
-                {% else %}
-                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
-                {% endif %}
-            </div>
-            <div class="lb-info">
-                <div class="lb-name">{{u['username']}} {% if u['id']==session['user_id'] %}<span class="lb-you">(Sen)</span>{% endif %}</div>
-                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
-            </div>
-            <div class="lb-stats">
-                <div class="lb-lp">{{u['total_lp']}} LP</div>
-                <div class="lb-study muted">{{u['total_study']//60}}s</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="card"><p class="muted center">Arkadaş ekle ve burada yarışın! 🤝</p>
-    <a href="{{url_for('friends')}}" class="btn btn-primary btn-sm" style="margin-top:12px">Arkadaş Ekle</a></div>
-    {% endif %}
+{% else %}
+<div class="card" style="text-align:center; padding:40px;">
+    <div style="font-size:3rem;margin-bottom:12px;">🤝</div>
+    <p class="muted">Henüz arkadaşın yok. Yukarıdan birileri ekle!</p>
 </div>
+{% endif %}
 
-<!-- Bugün -->
-<div class="tab-content" id="tab-today" style="display:none">
-    {% if today_lb %}
-    <div class="lb-list">
-        {% for u in today_lb %}
-        {% set r = get_rank(u['total_lp']) %}
-        <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}">
-            <div class="lb-pos">#{{loop.index}}</div>
-            <div class="lb-avatar">
-                {% if u['profile_photo'] and u['profile_photo']!='default.png' %}
-                <img src="{{url_for('static',filename='uploads/'+u['profile_photo'])}}" class="lb-avatar-img">
-                {% else %}
-                <div class="lb-avatar-placeholder">{{u['username'][0]|upper}}</div>
-                {% endif %}
-            </div>
-            <div class="lb-info">
-                <div class="lb-name">{{u['username']}}</div>
-                <div class="lb-rank" style="color:{{r['color']}}">{{r['icon']}} {{r['name']}}</div>
-            </div>
-            <div class="lb-stats">
-                <div class="lb-lp">{{u['today_mins']}} dk</div>
-                <div class="lb-study muted">bugün</div>
+<!-- Giden İstekler -->
+{% if outgoing %}
+<div class="card" style="margin-top:20px;">
+    <h3 style="margin-bottom:14px;">⏳ Giden İstekler</h3>
+    {% for r in outgoing %}
+    <div class="friend-req-row">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;">
+            {% if r['profile_photo'] and r['profile_photo'] != 'default.png' %}
+            <img src="{{ url_for('static', filename='uploads/' + r['profile_photo']) }}" class="friend-avatar"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="friend-avatar-ph" style="display:none">{{r['username'][0]|upper}}</div>
+            {% else %}
+            <div class="friend-avatar-ph">{{r['username'][0]|upper}}</div>
+            {% endif %}
+            <div>
+                <a href="{{ url_for('user_profile', user_id=r['uid']) }}" class="friend-username">{{r['username']}}</a>
+                {% set rr = get_rank(r['total_lp']) %}
+                <div class="friend-rank" style="color:{{rr['color']}}">{{rr['icon']}} {{rr['name']}} — {{r['total_lp']}} LP</div>
             </div>
         </div>
-        {% endfor %}
+        <span class="badge" style="background:rgba(255,170,0,.12);color:var(--warn);padding:6px 12px;border-radius:6px;font-size:.8rem;">Beklemede</span>
     </div>
-    {% else %}
-    <div class="card"><p class="muted center">Bugün henüz kimse çalışmamış. İlk sen ol! 🚀</p></div>
-    {% endif %}
+    {% endfor %}
 </div>
+{% endif %}
+
+<style>
+.friend-req-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    gap: 12px;
+}
+.friend-req-row:last-child { border-bottom: none; }
+
+.friend-avatar {
+    width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+}
+.friend-avatar-ph {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--accent);
+    color: var(--bg); font-weight: bold; display: flex; align-items: center;
+    justify-content: center; font-size: 1rem; flex-shrink: 0;
+}
+.friend-username { font-weight: 600; color: var(--text); text-decoration: none; }
+.friend-username:hover { color: var(--accent); }
+.friend-rank { font-size: .8rem; margin-top: 2px; }
+
+/* Sıralama listesi */
+.friends-lb-list { display: flex; flex-direction: column; gap: 4px; }
+.friend-lb-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 10px; border-radius: 8px;
+    text-decoration: none; color: var(--text);
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+}
+.friend-lb-row:last-child { border-bottom: none; }
+.friend-lb-row:hover { background: rgba(255,255,255,0.04); }
+
+.flb-pos { font-size: 1.4rem; min-width: 40px; text-align: center; }
+.flb-num { font-weight: bold; color: var(--text2); font-size: 1rem; }
+.flb-avatar { flex-shrink: 0; }
+.flb-info { flex: 1; overflow: hidden; }
+.flb-name { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flb-rank { font-size: .8rem; margin-top: 2px; }
+.flb-lp { text-align: right; }
+.flb-lp-val { font-weight: 800; font-size: 1.1rem; color: var(--accent); }
+.flb-lp-lbl { font-size: .75rem; }
+</style>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-function switchTab(tab,btn){
-    document.querySelectorAll('.tab-content').forEach(e=>e.style.display='none');
-    document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
-    document.getElementById('tab-'+tab).style.display='block';
-    btn.classList.add('active');
+function searchUser() {
+    const q = document.getElementById('friendSearchInput').value.trim();
+    if (!q || q.length < 2) { alert('En az 2 karakter gir.'); return; }
+
+    const res = document.getElementById('searchResult');
+    res.innerHTML = '<p class="muted">Aranıyor...</p>';
+
+    fetch('/api/search-user?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.length) {
+                res.innerHTML = '<p class="muted">Kullanıcı bulunamadı.</p>';
+                return;
+            }
+            res.innerHTML = data.map(u => `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+                    <div class="friend-avatar-ph">${u.username[0].toUpperCase()}</div>
+                    <div style="flex:1">
+                        <div style="font-weight:600">${u.username}</div>
+                        <div class="muted" style="font-size:.8rem">${u.total_lp} LP</div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="addFriendById(${u.id}, this)">➕ Ekle</button>
+                </div>
+            `).join('');
+        })
+        .catch(() => res.innerHTML = '<p class="muted">Bağlantı hatası.</p>');
 }
+
+function addFriendById(uid, btn) {
+    if (btn) btn.disabled = true;
+    fetch('/api/add-friend-by-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: uid })
+    })
+    .then(r => r.json())
+    .then(d => {
+        showXPPopup(0, d.message);
+        if (d.success && btn) btn.textContent = '⏳ Gönderildi';
+    })
+    .catch(() => { if (btn) btn.disabled = false; });
+}
+
+function acceptFriend(fid) {
+    fetch('/api/accept-friend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendship_id: fid })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            document.getElementById('inc-' + fid)?.remove();
+            showXPPopup(50, '🎉 Yeni arkadaş!');
+            setTimeout(() => location.reload(), 1500);
+        }
+    });
+}
+
+function rejectFriend(fid) {
+    fetch('/api/reject-friend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendship_id: fid })
+    })
+    .then(r => r.json())
+    .then(d => { if (d.success) document.getElementById('inc-' + fid)?.remove(); });
+}
+
+document.getElementById('friendSearchInput').addEventListener('keypress', e => {
+    if (e.key === 'Enter') searchUser();
+});
 </script>
 {% endblock %}

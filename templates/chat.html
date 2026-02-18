@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}💬 Sohbet{% endblock %}
+{% block content %}
+<h2 class="page-title">💬 Sohbet</h2>
+<p class="page-sub">Arkadaşlarınla mesajlaş!</p>
+
+{% if chats %}
+<div class="chat-list">
+    {% for c in chats %}
+    <a href="{{url_for('chat_with',friend_id=c['id'])}}" class="chat-list-item {{'chat-unread' if c['unread']>0}}">
+        <div class="chat-avatar">
+            {% set pp=get_photo_url(c.get('profile_photo')) %}
+            {% if pp %}<img src="{{pp}}" class="chat-avatar-img">
+            {% else %}<div class="chat-avatar-placeholder">{{c['username'][0]|upper}}</div>{% endif %}
+        </div>
+        <div class="chat-info">
+            <div class="chat-name">
+                {{c['username']}}
+                {% if c['unread']>0 %}<span class="chat-unread-badge">{{c['unread']}}</span>{% endif %}
+            </div>
+            <div class="chat-last-msg muted">
+                {% if c['last_message'] %}
+                    {% if c['last_message']['sender_id']==session['user_id'] %}Sen: {% endif %}
+                    {{c['last_message']['content'][:50]}}{% if c['last_message']['content']|length>50 %}...{% endif %}
+                {% else %}
+                    Henüz mesaj yok
+                {% endif %}
+            </div>
+        </div>
+        <div class="chat-arrow">▶</div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <p class="muted center">Arkadaş ekle ve sohbet etmeye başla!</p>
+    <a href="{{url_for('friends')}}" class="btn btn-primary btn-sm" style="margin-top:12px">👥 Arkadaş Ekle</a>
+</div>
+{% endif %}
+{% endblock %}

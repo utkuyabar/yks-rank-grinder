@@ -1,8 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{user['username']}} — Profil{% endblock %}
+{% block title %}{{user['username']}}{% endblock %}
 {% block content %}
-
-<!-- ═══ BANNER ═══ -->
+<!-- Banner -->
 <div class="profile-banner-wrap">
     {% if user['profile_banner'] %}
     <img src="{{get_photo_url(user['profile_banner'])}}" class="profile-banner-img">
@@ -10,146 +9,109 @@
     <div class="profile-banner-default" style="--rank-color:{{rank['color']}}"></div>
     {% endif %}
     <form method="POST" enctype="multipart/form-data" class="banner-upload-form">
-        <label class="banner-upload-btn" title="Banner Değiştir">
-            🖼️ Banner
-            <input type="file" name="profile_banner" accept="image/*,.gif"
-                   onchange="this.form.submit()" hidden>
-        </label>
+        <label class="banner-upload-btn">🖼️ Banner (GIF destekli)
+            <input type="file" name="profile_banner" accept="image/*,.gif" onchange="this.form.submit()" hidden></label>
     </form>
 </div>
 
-<!-- ═══ PROFİL KARTI ═══ -->
 <div class="profile-main-wrap">
-    <div class="grid grid-2">
-        <div class="card profile-card">
-            <div class="profile-photo-wrap">
-                {% set pp = get_photo_url(user['profile_photo']) %}
-                {% if pp %}
-                <img src="{{pp}}" class="profile-photo animated-pp">
-                {% else %}
-                <div class="profile-photo-placeholder">{{user['username'][0]|upper}}</div>
-                {% endif %}
-            </div>
-            <h2 class="profile-username">{{user['username']}}</h2>
+<div class="grid grid-2">
+    <div class="card profile-card">
+        <div class="profile-photo-wrap">
+            {% set pp=get_photo_url(user['profile_photo']) %}
+            {% if pp %}<img src="{{pp}}" class="profile-photo animated-pp">
+            {% else %}<div class="profile-photo-placeholder">{{user['username'][0]|upper}}</div>{% endif %}
+        </div>
 
-            <div class="profile-rank-display">
-                <img src="{{url_for('static',filename='img/ranks/'+rank['img'])}}" class="profile-rank-img"
-                     onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-                <span style="display:none;font-size:2rem">{{rank['icon']}}</span>
-                <div class="profile-rank-name" style="color:{{rank['color']}}">{{rank['name']}}</div>
-            </div>
-            <div class="profile-lp">{{user['total_lp']}} LP</div>
-
-            <form method="POST" enctype="multipart/form-data" class="photo-form">
-                <label class="btn btn-sm btn-secondary" style="cursor:pointer">
-                    📷 Fotoğraf (GIF destekli)
-                    <input type="file" name="profile_photo" accept="image/*,.gif"
-                           onchange="this.form.submit()" hidden>
-                </label>
-            </form>
-
-            <!-- Haftalık Rozetler -->
-            {% if weekly_badges %}
-            <div class="weekly-badges-display">
-                <h4>🏅 Haftalık Rozetler</h4>
-                <div class="badge-row">
-                    {% for b in weekly_badges[:8] %}
-                    <div class="weekly-badge-item" title="{{b['badge_name']}} — {{b['week_start']}} ({{b['stat_value']}})">
-                        <span class="wb-icon">{{b['badge_icon']}}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
+        <!-- Kullanıcı Adı + Değiştirme -->
+        <div class="username-section">
+            <h2 class="profile-username" id="displayName">{{user['username']}}</h2>
+            {% if can_change_name %}
+            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('nameChangeForm').style.display='block'">✏️ İsim Değiştir</button>
+            {% else %}
+            <small class="muted">İsim değiştirme: {{name_cooldown_days}} gün kaldı</small>
             {% endif %}
-
-            <div class="profile-stats-grid">
-                <div class="ps-item"><div class="ps-val">{{stats['active_days']}}</div><div class="ps-lbl">Gün</div></div>
-                <div class="ps-item"><div class="ps-val">{{stats['sessions']}}</div><div class="ps-lbl">Oturum</div></div>
-                <div class="ps-item"><div class="ps-val">{{(stats['total_mins']/60)|round(1)}}s</div><div class="ps-lbl">Toplam</div></div>
-                <div class="ps-item"><div class="ps-val">{{stats['pomodoros']}}</div><div class="ps-lbl">🍅</div></div>
-                <div class="ps-item"><div class="ps-val">{{stats['denemes']}}</div><div class="ps-lbl">Deneme</div></div>
+            <div id="nameChangeForm" style="display:none;margin-top:10px">
+                <input type="text" id="newUsername" placeholder="Yeni isim..." class="friend-input" minlength="3" maxlength="20">
+                <button class="btn btn-sm btn-primary" onclick="changeName()" style="margin-top:6px">Kaydet</button>
+                <p id="nameMsg" class="friend-msg" style="display:none"></p>
             </div>
         </div>
 
-        <div class="card">
-            <h3>🎯 Ayarlar</h3>
-            <form method="POST" class="auth-form">
-                <div class="form-group"><label>Günlük Hedef (saat)</label>
-                    <input type="number" name="daily_hours" value="{{(user['daily_goal_minutes']/60)|round(1)}}" min="1" max="16" step="0.5"></div>
-                <div class="form-group"><label>Hedef Üniversite</label>
-                    <input type="text" name="target_university" value="{{user['target_university']}}"></div>
-                <div class="form-row">
-                    <div class="form-group half"><label>📐 Mat</label><input type="number" name="target_mat_net" value="{{user['target_mat_net']}}" min="0" max="40" step="0.25"></div>
-                    <div class="form-group half"><label>⚡ Fiz</label><input type="number" name="target_fiz_net" value="{{user['target_fiz_net']}}" min="0" max="14" step="0.25"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group half"><label>🧪 Kim</label><input type="number" name="target_kim_net" value="{{user['target_kim_net']}}" min="0" max="13" step="0.25"></div>
-                    <div class="form-group half"><label>🧬 Bio</label><input type="number" name="target_bio_net" value="{{user['target_bio_net']}}" min="0" max="13" step="0.25"></div>
-                </div>
-                <hr class="divider"><p class="section-label">🍅 Pomodoro</p>
-                <div class="form-row">
-                    <div class="form-group half"><label>Çalışma (dk)</label><input type="number" name="pomodoro_work" value="{{user['pomodoro_work'] or 25}}" min="10" max="60"></div>
-                    <div class="form-group half"><label>Mola (dk)</label><input type="number" name="pomodoro_break" value="{{user['pomodoro_break'] or 5}}" min="1" max="30"></div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full">💾 Kaydet</button>
-            </form>
+        <div class="profile-rank-display">
+            <img src="{{url_for('static',filename='img/ranks/'+rank['img'])}}" class="profile-rank-img"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+            <span style="display:none;font-size:2rem">{{rank['icon']}}</span>
+            <div class="profile-rank-name" style="color:{{rank['color']}}">{{rank['name']}}</div>
+        </div>
+        <div class="profile-lp">{{user['total_lp']}} LP</div>
+
+        <form method="POST" enctype="multipart/form-data" class="photo-form">
+            <label class="btn btn-sm btn-secondary" style="cursor:pointer">📷 Fotoğraf (GIF)
+                <input type="file" name="profile_photo" accept="image/*,.gif" onchange="this.form.submit()" hidden></label>
+        </form>
+
+        {% if weekly_badges %}
+        <div class="weekly-badges-display"><h4>🏅 Rozetler</h4>
+            <div class="badge-row">{% for b in weekly_badges[:8] %}
+            <div class="weekly-badge-item" title="{{b['badge_name']}} — {{b['stat_value']}}"><span class="wb-icon">{{b['badge_icon']}}</span></div>
+            {% endfor %}</div>
+        </div>
+        {% endif %}
+
+        <div class="profile-stats-grid">
+            <div class="ps-item"><div class="ps-val">{{stats['active_days']}}</div><div class="ps-lbl">Gün</div></div>
+            <div class="ps-item"><div class="ps-val">{{stats['sessions']}}</div><div class="ps-lbl">Oturum</div></div>
+            <div class="ps-item"><div class="ps-val">{{(stats['total_mins']/60)|round(1)}}s</div><div class="ps-lbl">Toplam</div></div>
+            <div class="ps-item"><div class="ps-val">{{stats['pomodoros']}}</div><div class="ps-lbl">🍅</div></div>
+            <div class="ps-item"><div class="ps-val">{{stats['denemes']}}</div><div class="ps-lbl">Deneme</div></div>
         </div>
     </div>
+    <div class="card">
+        <h3>🎯 Ayarlar</h3>
+        <form method="POST" class="auth-form">
+            <div class="form-group"><label>Günlük (saat)</label><input type="number" name="daily_hours" value="{{(user['daily_goal_minutes']/60)|round(1)}}" min="1" max="16" step="0.5"></div>
+            <div class="form-group"><label>Hedef Üni</label><input type="text" name="target_university" value="{{user['target_university']}}"></div>
+            <div class="form-row"><div class="form-group half"><label>📐</label><input type="number" name="target_mat_net" value="{{user['target_mat_net']}}" min="0" max="40" step="0.25"></div><div class="form-group half"><label>⚡</label><input type="number" name="target_fiz_net" value="{{user['target_fiz_net']}}" min="0" max="14" step="0.25"></div></div>
+            <div class="form-row"><div class="form-group half"><label>🧪</label><input type="number" name="target_kim_net" value="{{user['target_kim_net']}}" min="0" max="13" step="0.25"></div><div class="form-group half"><label>🧬</label><input type="number" name="target_bio_net" value="{{user['target_bio_net']}}" min="0" max="13" step="0.25"></div></div>
+            <hr class="divider"><p class="section-label">🍅 Pomodoro</p>
+            <div class="form-row"><div class="form-group half"><label>Çalışma</label><input type="number" name="pomodoro_work" value="{{user['pomodoro_work'] or 25}}" min="10" max="60"></div><div class="form-group half"><label>Mola</label><input type="number" name="pomodoro_break" value="{{user['pomodoro_break'] or 5}}" min="1" max="30"></div></div>
+            <button type="submit" class="btn btn-primary btn-full">💾 Kaydet</button>
+        </form>
+    </div>
+</div>
 </div>
 
 <!-- Başarımlar -->
-<div class="card">
-    <h3>🏅 Başarımlar ({{earned_ids|length}}/{{achievements|length}})</h3>
-    <div class="ach-grid">
-        {% for a in achievements %}
-        <div class="ach-card {{'ach-earned' if a['id'] in earned_ids else 'ach-locked'}}">
-            <div class="ach-card-icon">{{a['icon']}}</div>
-            <div class="ach-card-info">
-                <div class="ach-card-name">{{a['name']}}</div>
-                <div class="ach-card-desc">{{a['desc']}}</div>
-                {% if a['lp']>0 %}<div class="ach-card-lp">+{{a['lp']}} LP</div>{% endif %}
-            </div>
-            {% if a['id'] in earned_ids %}<span>✅</span>{% else %}<span>🔒</span>{% endif %}
-        </div>
-        {% endfor %}
-    </div>
-</div>
+<div class="card"><h3>🏅 Başarımlar ({{earned_ids|length}}/{{achievements|length}})</h3>
+<div class="ach-grid">{% for a in achievements %}
+<div class="ach-card {{'ach-earned' if a['id'] in earned_ids else 'ach-locked'}}">
+    <div class="ach-card-icon">{{a['icon']}}</div>
+    <div class="ach-card-info"><div class="ach-card-name">{{a['name']}}</div><div class="ach-card-desc">{{a['desc']}}</div>{% if a['lp']>0 %}<div class="ach-card-lp">+{{a['lp']}}</div>{% endif %}</div>
+    {% if a['id'] in earned_ids %}<span>✅</span>{% else %}<span>🔒</span>{% endif %}
+</div>{% endfor %}</div></div>
 
-<!-- Haftalık Rozet Geçmişi -->
-{% if weekly_badges %}
-<div class="card">
-    <h3>🏆 Haftalık Rozet Geçmişi</h3>
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>Hafta</th><th>Rozet</th><th>Detay</th></tr></thead>
-            <tbody>
-            {% for b in weekly_badges %}
-            <tr>
-                <td>{{b['week_start']}} → {{b['week_end']}}</td>
-                <td>{{b['badge_icon']}} {{b['badge_name']}}</td>
-                <td class="muted">{{b['stat_value']}}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
+<div class="card"><h3>🗺️ Rank Yolu</h3>
+<div class="rank-roadmap">{% for r in all_ranks %}
+<div class="rm-item {{'rm-done' if user['total_lp']>=r['min_lp']}}">
+    <img src="{{url_for('static',filename='img/ranks/'+r['img'])}}" class="rm-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <div class="rm-icon" style="display:none;color:{{r['color']}}">{{r['icon']}}</div>
+    <div class="rm-name" style="color:{{r['color']}}">{{r['name']}}</div><div class="rm-lp">{{r['min_lp']}}</div>
+</div>{% if not loop.last %}<div class="rm-arrow">→</div>{% endif %}{% endfor %}</div></div>
+{% endblock %}
 
-<!-- Rank Yol Haritası -->
-<div class="card">
-    <h3>🗺️ Rank Yol Haritası</h3>
-    <div class="rank-roadmap">
-        {% for r in all_ranks %}
-        <div class="rm-item {{'rm-done' if user['total_lp']>=r['min_lp']}}">
-            <img src="{{url_for('static',filename='img/ranks/'+r['img'])}}" class="rm-img"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-            <div class="rm-icon" style="display:none;color:{{r['color']}}">{{r['icon']}}</div>
-            <div class="rm-name" style="color:{{r['color']}}">{{r['name']}}</div>
-            <div class="rm-lp">{{r['min_lp']}} LP</div>
-        </div>
-        {% if not loop.last %}<div class="rm-arrow">→</div>{% endif %}
-        {% endfor %}
-    </div>
-</div>
+{% block scripts %}
+<script>
+function changeName(){
+    const n=document.getElementById('newUsername').value.trim();
+    if(!n||n.length<3){alert('En az 3 karakter.');return}
+    fetch('/api/change-username',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_username:n})})
+    .then(r=>r.json()).then(d=>{
+        const m=document.getElementById('nameMsg');m.style.display='block';m.textContent=d.message;
+        m.className='friend-msg '+(d.success?'friend-msg-ok':'friend-msg-err');
+        if(d.success){document.getElementById('displayName').textContent=n;
+            document.getElementById('nameChangeForm').style.display='none';showXPPopup(0,'İsim değiştirildi! 🎉')}
+    });
+}
+</script>
 {% endblock %}

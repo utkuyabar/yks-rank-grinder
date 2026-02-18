@@ -1,59 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Liderlik Tablosu{% endblock %}
-<div id="leaderboard-ctx" class="ctx-menu" style="display:none; position: fixed; z-index: 1000;">
-    <a href="#" id="ctx-profile-link" class="ctx-item">👤 Profile Git</a>
-    <button onclick="addFriendFromCtx()" id="ctx-friend-btn" class="ctx-item">➕ Arkadaş Ekle</button>
-</div>
-
-<script>
-let selectedUserId = null;
-
-// Sağ tık olayını dinle
-document.addEventListener('contextmenu', function(e) {
-    const row = e.target.closest('.lb-item'); // Her bir kullanıcı satırı
-    if (row) {
-        e.preventDefault();
-        selectedUserId = row.getAttribute('data-user-id');
-        const isMe = row.classList.contains('lb-me');
-        
-        const menu = document.getElementById('leaderboard-ctx');
-        menu.style.display = 'block';
-        menu.style.left = e.pageX + 'px';
-        menu.style.top = e.pageY + 'px';
-        
-        // Linkleri güncelle
-        document.getElementById('ctx-profile-link').href = "/profile/" + selectedUserId;
-        
-        // Eğer kendisiyse arkadaş ekle butonunu gizle
-        document.getElementById('ctx-friend-btn').style.display = isMe ? 'none' : 'block';
-    } else {
-        hideCtx();
-    }
-});
-
-// Sol tıkla menüyü kapat
-document.addEventListener('click', function() {
-    hideCtx();
-});
-
-function hideCtx() {
-    document.getElementById('leaderboard-ctx').style.display = 'none';
-}
-
-function addFriendFromCtx() {
-    if (selectedUserId) {
-        fetch('/add_friend/' + selectedUserId, { method: 'POST' })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message || "İstek gönderildi!");
-                hideCtx();
-            });
+{% block title %}Sıralama Tablosu{% endblock %}
 
 {% block content %}
 <div class="lb-wrapper">
     <div class="lb-header-box card">
         <h1>🏆 SIRALAMA MERKEZİ</h1>
-        <p>Zirveye giden yolda rakiplerini takip et.</p>
+        <p>Zirveye giden yolda rakiplerini takip et. (Sağ tıkla etkileşime geç!)</p>
     </div>
 
     <div class="lb-tabs">
@@ -67,7 +19,7 @@ function addFriendFromCtx() {
         <div id="lb-rank" class="lb-pane active">
             {% if global_lb %}
                 {% for p in global_lb %}
-                <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}" data-user-id="{{ u['id'] }}">
+                <div class="lb-item {% if loop.index <= 3 %}top-three{% endif %} {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
                         <img src="{{ get_photo_url(p['profile_photo']) }}" class="lb-img" onerror="this.src='/static/img/default_pp.png'">
@@ -84,7 +36,7 @@ function addFriendFromCtx() {
         <div id="lb-study" class="lb-pane">
             {% if weekly_study_lb %}
                 {% for p in weekly_study_lb %}
-                <div class="lb-item">
+                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
                         <span class="lb-name">{{ p['username'] }}</span>
@@ -100,7 +52,7 @@ function addFriendFromCtx() {
         <div id="lb-deneme" class="lb-pane">
             {% if deneme_lb %}
                 {% for p in deneme_lb %}
-                <div class="lb-item">
+                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
                         <span class="lb-name">{{ p['username'] }}</span>
@@ -112,65 +64,79 @@ function addFriendFromCtx() {
                 <div class="lb-empty">Henüz deneme kaydı girilmemiş...</div>
             {% endif %}
         </div>
-
     </div>
 </div>
 
+<div id="leaderboard-ctx" class="ctx-menu" style="display:none; position: fixed; z-index: 1000;">
+    <a href="#" id="ctx-profile-link" class="ctx-item">👤 Profile Git</a>
+    <form id="ctx-add-friend-form" action="{{ url_for('add_friend') }}" method="POST">
+        <input type="hidden" name="friend_id" id="ctx-friend-id">
+        <button type="submit" class="ctx-item">➕ Arkadaş Ekle</button>
+    </form>
+</div>
+
 <style>
-    /* CSS Dosyanla Uyumlu Tasarım */
     .lb-wrapper { max-width: 700px; margin: 30px auto; padding: 0 15px; }
-    
     .lb-header-box { text-align: center; margin-bottom: 20px; padding: 30px !important; border-bottom: 3px solid var(--accent) !important; }
     .lb-header-box h1 { color: var(--accent); font-weight: 800; letter-spacing: 2px; }
     .lb-header-box p { color: var(--text2); font-size: 0.9rem; }
-
     .lb-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
-    .lb-tab-btn { 
-        flex: 1; padding: 12px; border: 1px solid var(--border); 
-        background: var(--bg2); color: var(--text); font-weight: bold; 
-        cursor: pointer; border-radius: 8px; transition: all 0.3s;
-    }
+    .lb-tab-btn { flex: 1; padding: 12px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-weight: bold; cursor: pointer; border-radius: 8px; transition: all 0.3s; }
     .lb-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
     .lb-tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 15px rgba(200, 155, 60, 0.3); }
-
     .lb-pane { display: none; }
     .lb-pane.active { display: block; animation: slideUp 0.4s ease; }
-
-    .lb-item { 
-        display: flex; align-items: center; padding: 15px; 
-        border-bottom: 1px solid var(--border); transition: 0.2s; 
-    }
-    .lb-item:last-child { border-bottom: none; }
-    .lb-item:hover { background: rgba(255,255,255,0.03); }
-
+    .lb-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid var(--border); transition: 0.2s; cursor: pointer; }
+    .lb-me { background: rgba(200, 155, 60, 0.05); border-left: 3px solid var(--accent); }
     .top-three { background: rgba(200, 155, 60, 0.05); }
     .top-three .lb-pos { color: var(--accent); font-size: 1.4rem; }
-
     .lb-pos { width: 50px; font-weight: 800; color: var(--text2); font-style: italic; }
     .lb-info { flex: 1; display: flex; align-items: center; gap: 15px; }
     .lb-img { width: 35px; height: 35px; border-radius: 50%; border: 1px solid var(--accent); object-fit: cover; }
     .lb-name { font-weight: 600; color: var(--text); }
     .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.1rem; }
     .lb-stat span { font-size: 0.7rem; color: var(--text2); margin-left: 3px; }
-
     .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-style: italic; }
-
-    @keyframes slideUp {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 
 <script>
     function showLB(type) {
-        // Panelleri gizle
         document.querySelectorAll('.lb-pane').forEach(p => p.classList.remove('active'));
-        // Butonları pasif yap
         document.querySelectorAll('.lb-tab-btn').forEach(b => b.classList.remove('active'));
-        
-        // Seçileni aktif yap
         document.getElementById('lb-' + type).classList.add('active');
         event.currentTarget.classList.add('active');
     }
+
+    // SAĞ TIK MANTIĞI
+    document.addEventListener('contextmenu', function(e) {
+        const row = e.target.closest('.lb-item');
+        if (row) {
+            e.preventDefault();
+            const userId = row.getAttribute('data-user-id');
+            const isMe = row.classList.contains('lb-me');
+            const menu = document.getElementById('leaderboard-ctx');
+            
+            menu.style.display = 'block';
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+            
+            document.getElementById('ctx-profile-link').href = "/profile/" + userId;
+            
+            const addFriendForm = document.getElementById('ctx-add-friend-form');
+            if (isMe) {
+                addFriendForm.style.display = 'none';
+            } else {
+                addFriendForm.style.display = 'block';
+                document.getElementById('ctx-friend-id').value = userId;
+            }
+        } else {
+            document.getElementById('leaderboard-ctx').style.display = 'none';
+        }
+    });
+
+    document.addEventListener('click', function() {
+        document.getElementById('leaderboard-ctx').style.display = 'none';
+    });
 </script>
 {% endblock %}

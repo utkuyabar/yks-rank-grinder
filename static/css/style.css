@@ -995,3 +995,27 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
 .animated-pp{border:3px solid var(--accent);transition:transform .3s}
 .animated-pp:hover{transform:scale(1.1);box-shadow:0 0 20px color-mix(in srgb,var(--accent) 40%,transparent)}
 @media(max-width:600px){.profile-banner-wrap{height:140px;margin-bottom:-40px}}
+
+.ctx-menu {
+    background: var(--bg2);
+    border: 1px solid var(--accent);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border-radius: 8px;
+    min-width: 150px;
+    overflow: hidden;
+}
+.ctx-item {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    color: var(--text);
+    text-decoration: none;
+    border: none;
+    background: none;
+    text-align: left;
+    transition: 0.2s;
+}
+.ctx-item:hover {
+    background: var(--accent);
+    color: var(--bg);
+}

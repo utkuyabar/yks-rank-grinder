@@ -613,6 +613,24 @@ def deneme():
         check_achievements(session['user_id']);db_commit();flash(f'+{lp} LP','success');return redirect(url_for('deneme'))
     hist=db_fetchall('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date DESC LIMIT 20',(session['user_id'],))
     return render_template('deneme.html',user=u,history=hist)
+    
+    @app.route('/add_friend/<int:friend_id>', methods=['POST'])
+@login_required
+def add_friend(friend_id):
+    if friend_id == session['user_id']:
+        return jsonify({'message': 'Kendini ekleyemezsin!'}), 400
+    
+    # Zaten arkadaş mı kontrol et
+    check = db_fetchone('SELECT id FROM friendships WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)', 
+                       (session['user_id'], friend_id, friend_id, session['user_id']))
+    
+    if check:
+        return jsonify({'message': 'Zaten bir bağlantınız var!'})
+    
+    db_execute('INSERT INTO friendships (user_id, friend_id, status) VALUES (?, ?, ?)', 
+               (session['user_id'], friend_id, 'pending'))
+    
+    return jsonify({'message': 'Arkadaşlık isteği gönderildi!'})
 
 @app.route('/profile', methods=['GET','POST'])
 @login_required
@@ -846,3 +864,5 @@ if __name__=='__main__':
     app.run(debug=True,port=5000)
 else:
     with app.app_context():init_db()
+    
+    

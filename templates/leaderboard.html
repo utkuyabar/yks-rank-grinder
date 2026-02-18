@@ -1,5 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Liderlik Tablosu{% endblock %}
+<div id="leaderboard-ctx" class="ctx-menu" style="display:none; position: fixed; z-index: 1000;">
+    <a href="#" id="ctx-profile-link" class="ctx-item">👤 Profile Git</a>
+    <button onclick="addFriendFromCtx()" id="ctx-friend-btn" class="ctx-item">➕ Arkadaş Ekle</button>
+</div>
+
+<script>
+let selectedUserId = null;
+
+// Sağ tık olayını dinle
+document.addEventListener('contextmenu', function(e) {
+    const row = e.target.closest('.lb-item'); // Her bir kullanıcı satırı
+    if (row) {
+        e.preventDefault();
+        selectedUserId = row.getAttribute('data-user-id');
+        const isMe = row.classList.contains('lb-me');
+        
+        const menu = document.getElementById('leaderboard-ctx');
+        menu.style.display = 'block';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+        
+        // Linkleri güncelle
+        document.getElementById('ctx-profile-link').href = "/profile/" + selectedUserId;
+        
+        // Eğer kendisiyse arkadaş ekle butonunu gizle
+        document.getElementById('ctx-friend-btn').style.display = isMe ? 'none' : 'block';
+    } else {
+        hideCtx();
+    }
+});
+
+// Sol tıkla menüyü kapat
+document.addEventListener('click', function() {
+    hideCtx();
+});
+
+function hideCtx() {
+    document.getElementById('leaderboard-ctx').style.display = 'none';
+}
+
+function addFriendFromCtx() {
+    if (selectedUserId) {
+        fetch('/add_friend/' + selectedUserId, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || "İstek gönderildi!");
+                hideCtx();
+            });
 
 {% block content %}
 <div class="lb-wrapper">
@@ -19,7 +67,7 @@
         <div id="lb-rank" class="lb-pane active">
             {% if global_lb %}
                 {% for p in global_lb %}
-                <div class="lb-item {% if loop.index <= 3 %}top-three{% endif %}">
+                <div class="lb-item {{'lb-me' if u['id']==session['user_id']}}" data-user-id="{{ u['id'] }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
                         <img src="{{ get_photo_url(p['profile_photo']) }}" class="lb-img" onerror="this.src='/static/img/default_pp.png'">

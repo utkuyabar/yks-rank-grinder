@@ -1,68 +1,61 @@
 {% extends "base.html" %}
-{% block title %}{{target['username']}}{% endblock %}
+{% block title %}{{ target['username'] if target else 'Liderlik Tablosu' }}{% endblock %}
+
 {% block content %}
 <div class="profile-banner-wrap">
-    {% if target['profile_banner'] %}<img src="{{get_photo_url(target['profile_banner'])}}" class="profile-banner-img">
-    {% else %}<div class="profile-banner-default" style="--rank-color:{{target_rank['color']}}"></div>{% endif %}
-</div>
-<div class="profile-main-wrap">
-<div class="card profile-card" style="max-width:600px;margin:0 auto">
-    <div class="profile-photo-wrap">
-        {% set pp=get_photo_url(target.get('profile_photo')) %}
-        {% if pp %}<img src="{{pp}}" class="profile-photo animated-pp">
-        {% else %}<div class="profile-photo-placeholder">{{target['username'][0]|upper}}</div>{% endif %}
-    </div>
-    <h2 class="profile-username">{{target['username']}}</h2>
-    <div class="profile-rank-display">
-        <img src="{{url_for('static',filename='img/ranks/'+target_rank['img'])}}" class="profile-rank-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-        <span style="display:none;font-size:2rem">{{target_rank['icon']}}</span>
-        <div class="profile-rank-name" style="color:{{target_rank['color']}}">{{target_rank['name']}}</div>
-    </div>
-    <div class="profile-lp">{{target['total_lp']}} LP — #{{lb_position}}</div>
-    {% if target['target_university'] %}<div class="muted" style="margin:8px 0">🎯 {{target['target_university']}}</div>{% endif %}
-    <div style="margin:16px 0">
-        {% if is_friend %}
-        <span class="badge badge-success" style="font-size:.9rem;padding:8px 16px">✅ Arkadaşsınız</span>
-        <a href="{{url_for('chat_with',friend_id=target['id'])}}" class="btn btn-sm btn-primary" style="margin-left:8px">💬 Mesaj</a>
-        {% elif is_pending %}
-        <span class="badge" style="background:rgba(255,170,0,.15);color:var(--warn);padding:8px 16px">⏳ İstek Gönderildi</span>
-        {% else %}
-        <button class="btn btn-primary" onclick="addFriendById({{target['id']}})">🤝 Arkadaş Ekle</button>
-        {% endif %}
-    </div>
-    {% if weekly_badges %}
-    <div class="weekly-badges-display"><h4>🏅 Rozetler</h4>
-    <div class="badge-row">{% for b in weekly_badges[:8] %}<div class="weekly-badge-item" title="{{b['badge_name']}}"><span class="wb-icon">{{b['badge_icon']}}</span></div>{% endfor %}</div></div>
+    {% if target and target['profile_banner'] %}
+        <img src="{{get_photo_url(target['profile_banner'])}}" class="profile-banner-img">
+    {% else %}
+        <div class="profile-banner-default" style="--rank-color:{{ target_rank['color'] if target_rank else '#ccc' }}"></div>
     {% endif %}
-    <div class="profile-stats-grid">
-        <div class="ps-item"><div class="ps-val">{{stats['active_days']}}</div><div class="ps-lbl">Gün</div></div>
-        <div class="ps-item"><div class="ps-val">{{stats['sessions']}}</div><div class="ps-lbl">Oturum</div></div>
-        <div class="ps-item"><div class="ps-val">{{(stats['total_mins']/60)|round(1)}}s</div><div class="ps-lbl">Toplam</div></div>
-        <div class="ps-item"><div class="ps-val">{{stats['pomodoros']}}</div><div class="ps-lbl">🍅</div></div>
-        <div class="ps-item"><div class="ps-val">{{stats['denemes']}}</div><div class="ps-lbl">Deneme</div></div>
+</div>
+
+<div class="profile-main-wrap">
+    <div class="card profile-card" style="max-width:600px;margin:0 auto">
+        <div class="profile-photo-wrap">
+            {% if target %}
+                {% set pp = get_photo_url(target.get('profile_photo')) %}
+                {% if pp %}
+                    <img src="{{pp}}" class="profile-photo animated-pp">
+                {% else %}
+                    <div class="profile-photo-placeholder">{{ target['username'][0]|upper }}</div>
+                {% endif %}
+            {% endif %}
+        </div>
+        <h2 class="profile-username">{{ target['username'] if target else 'Yükleniyor...' }}</h2>
+        
+        <div class="profile-rank-display">
+            {% if target_rank %}
+                <img src="{{url_for('static',filename='img/ranks/'+target_rank['img'])}}" class="profile-rank-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+                <span style="display:none;font-size:2rem">{{target_rank['icon']}}</span>
+                <div class="profile-rank-name" style="color:{{target_rank['color']}}">{{target_rank['name']}}</div>
+            {% endif %}
+        </div>
+
+        <div class="profile-stats">
+            <div class="p-stat"><strong>{{ target['total_lp'] if target else 0 }}</strong><span>LP</span></div>
+            <div class="p-stat"><strong>#{{ my_position }}</strong><span>Sıra</span></div>
+        </div>
+    </div>
+
+    <div class="card" style="max-width:600px;margin:20px auto">
+        <h3>🏅 Başarımlar ({{ earned_ids|length if earned_ids else 0 }})</h3>
+        <div class="ach-grid">
+            {% if achievements %}
+                {% for a in achievements %}
+                    {% if earned_ids and a['id'] in earned_ids %}
+                        <div class="ach-card ach-earned">
+                            <div class="ach-card-icon">{{a['icon']}}</div>
+                            <div class="ach-card-info">
+                                <div class="ach-card-name">{{a['name']}}</div>
+                                <div class="ach-card-desc">{{a['desc']}}</div>
+                            </div>
+                            <span>✅</span>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
     </div>
 </div>
-{% if subj_stats %}
-<div class="card" style="max-width:600px;margin:20px auto"><h3>📊 Ders Dağılımı</h3>
-{% set total_s=subj_stats|sum(attribute='t') %}
-{% for s in subj_stats %}<div class="dist-row"><span>{{subject_icons.get(s['subject'],'📚')}} {{s['subject']}}</span><div class="dist-bar-wrap"><div class="dist-bar" style="width:{{(s['t']/total_s*100)|int if total_s else 0}}%"></div></div><span class="muted">{{s['t']}}dk</span></div>{% endfor %}</div>
-{% endif %}
-{% if last_deneme %}
-<div class="card" style="max-width:600px;margin:20px auto"><h3>📝 Son Deneme</h3>
-<div class="deneme-mini">
-{% for label,val in [('📐 Mat',last_deneme['mat_net']),('⚡ Fiz',last_deneme['fiz_net']),('🧪 Kim',last_deneme['kim_net']),('🧬 Bio',last_deneme['bio_net'])] %}
-<div class="deneme-row"><span>{{label}}</span><strong>{{val}}</strong></div>{% endfor %}
-<hr class="divider"><div class="deneme-row"><span><strong>Toplam</strong></span><strong>{{last_deneme['total_net']}}</strong></div></div></div>
-{% endif %}
-<div class="card" style="max-width:600px;margin:20px auto"><h3>🏅 Başarımlar ({{earned_ids|length}})</h3>
-<div class="ach-grid">{% for a in achievements %}{% if a['id'] in earned_ids %}<div class="ach-card ach-earned"><div class="ach-card-icon">{{a['icon']}}</div><div class="ach-card-info"><div class="ach-card-name">{{a['name']}}</div><div class="ach-card-desc">{{a['desc']}}</div></div><span>✅</span></div>{% endif %}{% endfor %}</div>
-{% if earned_ids|length==0 %}<p class="muted center">Henüz yok.</p>{% endif %}</div>
-<div class="card" style="max-width:600px;margin:20px auto"><h3>🗺️ Rank Yolu</h3>
-<div class="rank-roadmap">{% for r in all_ranks %}<div class="rm-item {{'rm-done' if target['total_lp']>=r['min_lp']}}"><img src="{{url_for('static',filename='img/ranks/'+r['img'])}}" class="rm-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div class="rm-icon" style="display:none;color:{{r['color']}}">{{r['icon']}}</div><div class="rm-name" style="color:{{r['color']}}">{{r['name']}}</div><div class="rm-lp">{{r['min_lp']}}</div></div>{% if not loop.last %}<div class="rm-arrow">→</div>{% endif %}{% endfor %}</div></div>
-</div>
-{% endblock %}
-{% block scripts %}
-<script>
-function addFriendById(uid){fetch('/api/add-friend-by-id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})}).then(r=>r.json()).then(d=>{if(d.success){showXPPopup(0,d.message);setTimeout(()=>location.reload(),1500)}else alert(d.message)})}
-</script>
 {% endblock %}

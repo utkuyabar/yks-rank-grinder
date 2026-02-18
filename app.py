@@ -732,23 +732,70 @@ def remove_friend():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
-    global_lb=db_fetchall('SELECT id,username,profile_photo,total_lp,(SELECT COALESCE(SUM(duration_minutes),0) FROM study_sessions WHERE user_id=users.id) as total_study FROM users ORDER BY total_lp DESC LIMIT 50')
-    ws=(date.today()-timedelta(days=date.today().weekday())).isoformat()
-    weekly_study_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,COALESCE(SUM(s.duration_minutes),0) as week_mins FROM users u JOIN study_sessions s ON s.user_id=u.id AND s.session_date>=? GROUP BY u.id,u.username,u.profile_photo,u.total_lp ORDER BY week_mins DESC LIMIT 50',(ws,))
-    deneme_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,d.total_net,d.mat_net,d.fiz_net,d.kim_net,d.bio_net,d.deneme_date FROM users u JOIN deneme_results d ON d.user_id=u.id WHERE d.id=(SELECT id FROM deneme_results WHERE user_id=u.id ORDER BY deneme_date DESC LIMIT 1) ORDER BY d.total_net DESC LIMIT 50')
-    fids_rows=db_fetchall("SELECT CASE WHEN sender_id=? THEN receiver_id ELSE sender_id END as fid FROM friendships WHERE (sender_id=? OR receiver_id=?) AND status='accepted'",(session['user_id'],session['user_id'],session['user_id']))
-    fids=[f['fid'] for f in fids_rows]+[session['user_id']]
-    if len(fids)>1:
-        ph=','.join(['%s' if USE_POSTGRES else '?']*len(fids))
-        friends_lb=db_fetchall(f'SELECT id,username,profile_photo,total_lp,(SELECT COALESCE(SUM(duration_minutes),0) FROM study_sessions WHERE user_id=users.id) as total_study FROM users WHERE id IN ({ph}) ORDER BY total_lp DESC',fids)
-    else:friends_lb=[]
-    today_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,COALESCE(SUM(s.duration_minutes),0) as today_mins FROM users u JOIN study_sessions s ON s.user_id=u.id AND s.session_date=? GROUP BY u.id,u.username,u.profile_photo,u.total_lp ORDER BY today_mins DESC LIMIT 20',(date.today().isoformat(),))
-    recent_badges=db_fetchall('SELECT wb.*,u.username,u.profile_photo FROM weekly_badges wb JOIN users u ON u.id=wb.user_id ORDER BY wb.week_start DESC LIMIT 20')
-    my_pos=1
-    for i,x in enumerate(global_lb):
-        if x['id']==session['user_id']:my_pos=i+1;break
-    return render_template('leaderboard.html',user=u,rank=get_rank(u['total_lp']),global_lb=global_lb,friends_lb=friends_lb,today_lb=today_lb,weekly_study_lb=weekly_study_lb,deneme_lb=deneme_lb,recent_badges=recent_badges,my_position=my_pos)
+    # Giriş yapan kullanıcıyı al
+    u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
+    
+    # Liderlik tabloları verileri
+    global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
+    
+    friends_lb = db_fetchall('''
+        SELECT u.username, u.total_lp, u.profile_photo FROM users u 
+        JOIN friendships f ON (f.user_id=? AND f.friend_id=u.id) OR (f.friend_id=? AND f.user_id=u.id)
+        WHERE f.status='accepted'
+        UNION
+        SELECT username, total_lp, profile_photo FROM users WHERE id=?
+        ORDER BY total_lp DESC
+    ''', (session['user_id'], session['user_id'], session['user_id']))
+    
+    today_str = date.today().isoformat()
+    today_lb = db_fetchall('''
+        SELECT u.username, SUM(s.duration_minutes) as daily_total, u.profile_photo 
+        FROM study_sessions s JOIN users u ON s.user_id=u.id 
+        WHERE s.start_time LIKE ? GROUP BY u.id ORDER BY daily_total DESC LIMIT 50
+    ''', (today_str + '%',))
+    
+    one_week_ago = (date.today() - timedelta(days=7)).isoformat()
+    weekly_study_lb = db_fetchall('''
+        SELECT u.username, SUM(s.duration_minutes) as weekly_total, u.profile_photo 
+        FROM study_sessions s JOIN users u ON s.user_id=u.id 
+        WHERE s.start_time >= ? GROUP BY u.id ORDER BY weekly_total DESC LIMIT 50
+    ''', (one_week_ago,))
+    
+    deneme_lb = db_fetchall('''
+        SELECT u.username, MAX(d.net_total) as best_net, u.profile_photo 
+        FROM deneme_results d JOIN users u ON d.user_id=u.id 
+        GROUP BY u.id ORDER BY best_net DESC LIMIT 50
+    ''')
+
+    recent_badges = db_fetchall('''
+        SELECT u.username, a.badge_name, a.earned_at 
+        FROM user_achievements a JOIN users u ON a.user_id=u.id 
+        ORDER BY a.earned_at DESC LIMIT 15
+    ''')
+
+    all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
+    my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
+
+    # HTML'in beklediği profil verilerini 'u' (mevcut kullanıcı) üzerinden ata
+    target_rank = get_rank(u['total_lp'])
+    earned_achievements = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
+    earned_ids = [row['achievement_id'] for row in earned_achievements]
+
+    return render_template('leaderboard.html', 
+                           user=u, 
+                           target=u, 
+                           target_rank=target_rank,
+                           earned_ids=earned_ids,
+                           achievements=ACHIEVEMENT_LIST,
+                           all_ranks=RANKS,
+                           rank=target_rank, 
+                           global_lb=global_lb, 
+                           friends_lb=friends_lb, 
+                           today_lb=today_lb, 
+                           weekly_study_lb=weekly_study_lb, 
+                           deneme_lb=deneme_lb, 
+                           recent_badges=recent_badges, 
+                           my_position=my_pos)
 
 @app.route('/chat')
 @login_required

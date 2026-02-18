@@ -732,13 +732,16 @@ def remove_friend():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
+    # Hata durumunda veritabanı işlemini temizlemek için bir fonksiyon
+    def safe_rollback():
+        if USE_POSTGRES and hasattr(g, 'db'):
+            g.db.rollback()
+
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    # 1. Genel Sıralama
     global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
     
-    # 2. Arkadaş Sıralaması (HATA BURADAYDI - Sütun isimlerinden bağımsız en güvenli sorgu)
-    # Eğer bu sorgu da hata verirse veritabanında 'friendships' tablosu hiç yok demektir.
+    # 1. ARKADAŞLAR SORGUSU (Hata verirse rollback yapıp boş liste döndürür)
     try:
         friends_lb = db_fetchall('''
             SELECT username, total_lp, profile_photo FROM users 
@@ -751,62 +754,63 @@ def leaderboard():
             )
             ORDER BY total_lp DESC
         ''', (session['user_id'], session['user_id'], session['user_id']))
-    except:
-        # Tablo yapısı farklıysa hata vermemesi için sadece kullanıcıyı göster
+    except Exception as e:
+        print("Arkadas listesi hatasi:", e)
+        safe_rollback() # Veritabanı kilidini açar
         friends_lb = [u]
 
-    # 3. Günlük/Haftalık Çalışma
+    # 2. GÜNLÜK SIRALAMA (PostgreSQL GROUP BY kuralı düzeltildi)
     today_str = date.today().isoformat()
     today_lb = db_fetchall('''
-        SELECT u.username, SUM(s.duration_minutes) as daily_total, u.profile_photo 
-        FROM study_sessions s JOIN users u ON s.user_id=u.id 
-        WHERE s.start_time LIKE ? GROUP BY u.id, u.username, u.profile_photo 
+        SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
+        FROM study_sessions s 
+        JOIN users u ON s.user_id = u.id 
+        WHERE s.start_time LIKE ? 
+        GROUP BY u.id, u.username, u.profile_photo 
         ORDER BY daily_total DESC LIMIT 50
     ''', (today_str + '%',))
     
+    # 3. HAFTALIK SIRALAMA
     one_week_ago = (date.today() - timedelta(days=7)).isoformat()
     weekly_study_lb = db_fetchall('''
-        SELECT u.username, SUM(s.duration_minutes) as weekly_total, u.profile_photo 
-        FROM study_sessions s JOIN users u ON s.user_id=u.id 
-        WHERE s.start_time >= ? GROUP BY u.id, u.username, u.profile_photo 
+        SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as weekly_total
+        FROM study_sessions s 
+        JOIN users u ON s.user_id = u.id 
+        WHERE s.start_time >= ? 
+        GROUP BY u.id, u.username, u.profile_photo 
         ORDER BY weekly_total DESC LIMIT 50
     ''', (one_week_ago,))
     
+    # 4. DENEME SIRALAMASI
     deneme_lb = db_fetchall('''
-        SELECT u.username, MAX(d.net_total) as best_net, u.profile_photo 
-        FROM deneme_results d JOIN users u ON d.user_id=u.id 
-        GROUP BY u.id, u.username, u.profile_photo ORDER BY best_net DESC LIMIT 50
+        SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
+        FROM deneme_results d 
+        JOIN users u ON d.user_id = u.id 
+        GROUP BY u.id, u.username, u.profile_photo 
+        ORDER BY best_net DESC LIMIT 50
     ''')
 
     recent_badges = db_fetchall('''
         SELECT u.username, a.badge_name, a.earned_at 
-        FROM user_achievements a JOIN users u ON a.user_id=u.id 
+        FROM user_achievements a 
+        JOIN users u ON a.user_id = u.id 
         ORDER BY a.earned_at DESC LIMIT 15
     ''')
 
     all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
     my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
 
-    # HTML'in beklediği profil verileri
     tr = get_rank(u['total_lp'])
     e_ach = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
     e_ids = [row['achievement_id'] for row in e_ach] if e_ach else []
 
     return render_template('leaderboard.html', 
-                           user=u, 
-                           target=u, 
-                           target_rank=tr, 
-                           earned_ids=e_ids, 
+                           user=u, target=u, target_rank=tr, earned_ids=e_ids, 
                            achievements=globals().get('ACHIEVEMENT_LIST', []),
                            all_ranks=globals().get('RANKS', []),
-                           rank=tr, 
-                           global_lb=global_lb, 
-                           friends_lb=friends_lb, 
-                           today_lb=today_lb, 
-                           weekly_study_lb=weekly_study_lb, 
-                           deneme_lb=deneme_lb, 
-                           recent_badges=recent_badges, 
-                           my_position=my_pos)
+                           rank=tr, global_lb=global_lb, friends_lb=friends_lb, 
+                           today_lb=today_lb, weekly_study_lb=weekly_study_lb, 
+                           deneme_lb=deneme_lb, recent_badges=recent_badges, my_position=my_pos)
 
 @app.route('/chat')
 @login_required

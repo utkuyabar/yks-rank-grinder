@@ -732,17 +732,20 @@ def remove_friend():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    # Mevcut kullanıcıyı al
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    # Sıralama listelerini çek
     global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
+    
+    # HATA BURADAYDI - Sütun isimlerini ve sorguyu modernize ettim
     friends_lb = db_fetchall('''
-        SELECT u.username, u.total_lp, u.profile_photo FROM users u 
-        JOIN friendships f ON (f.user_id=? AND f.friend_id=u.id) OR (f.friend_id=? AND f.user_id=u.id)
-        WHERE f.status='accepted'
-        UNION
-        SELECT username, total_lp, profile_photo FROM users WHERE id=?
+        SELECT username, total_lp, profile_photo FROM users 
+        WHERE id IN (
+            SELECT friend_id FROM friendships WHERE user_id = ? AND status = 'accepted'
+            UNION
+            SELECT user_id FROM friendships WHERE friend_id = ? AND status = 'accepted'
+            UNION
+            SELECT ?
+        )
         ORDER BY total_lp DESC
     ''', (session['user_id'], session['user_id'], session['user_id']))
     
@@ -775,28 +778,16 @@ def leaderboard():
     all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
     my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
 
-    # --- HATA ÇÖZÜCÜ TANIMLAMALAR ---
     tr = get_rank(u['total_lp'])
-    # Veritabanından başarımları çek (hata vermemesi için boş liste kontrolü ile)
     e_ach = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
     e_ids = [row['achievement_id'] for row in e_ach] if e_ach else []
 
-    # HTML'e gönderilecek isimlerin tam eşleştiğinden emin oluyoruz
     return render_template('leaderboard.html', 
-                           user=u, 
-                           target=u, # HTML 'target' bekliyor
-                           target_rank=tr, # HTML 'target_rank' bekliyor
-                           earned_ids=e_ids, 
-                           achievements=ACHIEVEMENT_LIST if 'ACHIEVEMENT_LIST' in globals() else [],
-                           all_ranks=RANKS if 'RANKS' in globals() else [],
-                           rank=tr, 
-                           global_lb=global_lb, 
-                           friends_lb=friends_lb, 
-                           today_lb=today_lb, 
-                           weekly_study_lb=weekly_study_lb, 
-                           deneme_lb=deneme_lb, 
-                           recent_badges=recent_badges, 
-                           my_position=my_pos)
+                           user=u, target=u, target_rank=tr, earned_ids=e_ids, 
+                           achievements=ACHIEVEMENT_LIST, all_ranks=RANKS,
+                           rank=tr, global_lb=global_lb, friends_lb=friends_lb, 
+                           today_lb=today_lb, weekly_study_lb=weekly_study_lb, 
+                           deneme_lb=deneme_lb, recent_badges=recent_badges, my_position=my_pos)
 
 @app.route('/chat')
 @login_required

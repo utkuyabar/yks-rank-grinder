@@ -614,7 +614,7 @@ def deneme():
     hist=db_fetchall('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date DESC LIMIT 20',(session['user_id'],))
     return render_template('deneme.html',user=u,history=hist)
     
-    @app.route('/add_friend/<int:friend_id>', methods=['POST'])
+@app.route('/add_friend/<int:friend_id>', methods=['POST'])
 @login_required
 def add_friend(friend_id):
     if friend_id == session['user_id']:

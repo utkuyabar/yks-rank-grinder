@@ -723,7 +723,7 @@ def leaderboard():
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
     # 1. RANK SIRALAMASI (Toplam LP)
-    global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 50')
+    global_lb = db_fetchall('SELECT id, username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 50')
 
     # 2. HAFTALIK ÇALIŞMA (Son 7 gün)
     weekly_study_lb = []
@@ -731,7 +731,7 @@ def leaderboard():
         one_week_ago = (date.today() - timedelta(days=7)).isoformat()
         # Senin tablona göre created_at kullandım
         weekly_study_lb = db_fetchall('''
-            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as total_min
+            SELECT u.id, u.username, u.profile_photo, SUM(s.duration_minutes) as total_min
             FROM study_sessions s JOIN users u ON s.user_id = u.id 
             WHERE s.created_at >= ? GROUP BY u.id, u.username, u.profile_photo 
             ORDER BY total_min DESC LIMIT 50
@@ -742,7 +742,7 @@ def leaderboard():
     deneme_lb = []
     try:
         deneme_lb = db_fetchall('''
-            SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
+            SELECT u.id, u.username, u.profile_photo, MAX(d.total_net) as best_net 
             FROM deneme_results d JOIN users u ON d.user_id = u.id 
             GROUP BY u.id, u.username, u.profile_photo 
             ORDER BY best_net DESC LIMIT 50

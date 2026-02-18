@@ -9,21 +9,33 @@
     </div>
 
     <div class="lb-tabs">
-        <button class="lb-tab-btn active" onclick="showLB('rank')">⭐ RANK</button>
-        <button class="lb-tab-btn" onclick="showLB('study')">⏳ SÜRE</button>
-        <button class="lb-tab-btn" onclick="showLB('deneme')">📝 DENEME</button>
+        <button class="lb-tab-btn active" onclick="showLB('rank', this)">⭐ RANK</button>
+        <button class="lb-tab-btn" onclick="showLB('study', this)">⏳ SÜRE</button>
+        <button class="lb-tab-btn" onclick="showLB('deneme', this)">📝 DENEME</button>
     </div>
 
     <div class="lb-body card">
-        
+
+        <!-- RANK -->
         <div id="lb-rank" class="lb-pane active">
             {% if global_lb %}
                 {% for p in global_lb %}
-                <div class="lb-item {% if loop.index <= 3 %}top-three{% endif %} {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
-                    <div class="lb-pos">#{{ loop.index }}</div>
+                <div class="lb-item {% if loop.index <= 3 %}top-three{% endif %} {{'lb-me' if p['id']==session['user_id']}}"
+                     data-user-id="{{ p['id'] }}"
+                     data-is-me="{{ 'true' if p['id']==session['user_id'] else 'false' }}">
+                    <div class="lb-pos">
+                        {% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}#{{ loop.index }}{% endif %}
+                    </div>
                     <div class="lb-info">
-                        <img src="{{ get_photo_url(p['profile_photo']) }}" class="lb-img" onerror="this.src='/static/img/default_pp.png'">
-                        <span class="lb-name">{{ p['username'] }}</span>
+                        {% if p['profile_photo'] and p['profile_photo'] != 'default.png' %}
+                        <img src="{{ url_for('static', filename='uploads/' + p['profile_photo']) }}"
+                             class="lb-img"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="lb-avatar-placeholder lb-img" style="display:none">{{ p['username'][0]|upper }}</div>
+                        {% else %}
+                        <div class="lb-avatar-placeholder lb-img">{{ p['username'][0]|upper }}</div>
+                        {% endif %}
+                        <span class="lb-name">{{ p['username'] }}{% if p['id']==session['user_id'] %} <span class="lb-you">(Sen)</span>{% endif %}</span>
                     </div>
                     <div class="lb-stat">{{ p['total_lp'] }} <span>LP</span></div>
                 </div>
@@ -33,13 +45,24 @@
             {% endif %}
         </div>
 
+        <!-- SÜRE -->
         <div id="lb-study" class="lb-pane">
             {% if weekly_study_lb %}
                 {% for p in weekly_study_lb %}
-                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
+                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}"
+                     data-user-id="{{ p['id'] }}"
+                     data-is-me="{{ 'true' if p['id']==session['user_id'] else 'false' }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
-                        <span class="lb-name">{{ p['username'] }}</span>
+                        {% if p['profile_photo'] and p['profile_photo'] != 'default.png' %}
+                        <img src="{{ url_for('static', filename='uploads/' + p['profile_photo']) }}"
+                             class="lb-img"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="lb-avatar-placeholder lb-img" style="display:none">{{ p['username'][0]|upper }}</div>
+                        {% else %}
+                        <div class="lb-avatar-placeholder lb-img">{{ p['username'][0]|upper }}</div>
+                        {% endif %}
+                        <span class="lb-name">{{ p['username'] }}{% if p['id']==session['user_id'] %} <span class="lb-you">(Sen)</span>{% endif %}</span>
                     </div>
                     <div class="lb-stat">{{ p['total_min'] }} <span>dk</span></div>
                 </div>
@@ -49,13 +72,24 @@
             {% endif %}
         </div>
 
+        <!-- DENEME -->
         <div id="lb-deneme" class="lb-pane">
             {% if deneme_lb %}
                 {% for p in deneme_lb %}
-                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}" data-user-id="{{ p['id'] }}">
+                <div class="lb-item {{'lb-me' if p['id']==session['user_id']}}"
+                     data-user-id="{{ p['id'] }}"
+                     data-is-me="{{ 'true' if p['id']==session['user_id'] else 'false' }}">
                     <div class="lb-pos">#{{ loop.index }}</div>
                     <div class="lb-info">
-                        <span class="lb-name">{{ p['username'] }}</span>
+                        {% if p['profile_photo'] and p['profile_photo'] != 'default.png' %}
+                        <img src="{{ url_for('static', filename='uploads/' + p['profile_photo']) }}"
+                             class="lb-img"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="lb-avatar-placeholder lb-img" style="display:none">{{ p['username'][0]|upper }}</div>
+                        {% else %}
+                        <div class="lb-avatar-placeholder lb-img">{{ p['username'][0]|upper }}</div>
+                        {% endif %}
+                        <span class="lb-name">{{ p['username'] }}{% if p['id']==session['user_id'] %} <span class="lb-you">(Sen)</span>{% endif %}</span>
                     </div>
                     <div class="lb-stat">{{ p['best_net'] }} <span>Net</span></div>
                 </div>
@@ -67,67 +101,99 @@
     </div>
 </div>
 
-<div id="leaderboard-ctx" class="ctx-menu" style="display:none; position: fixed; z-index: 1000;">
+<!-- Sağ Tık Menüsü -->
+<div id="leaderboard-ctx" class="ctx-menu" style="display:none; position:fixed; z-index:1000;">
     <a href="#" id="ctx-profile-link" class="ctx-item">👤 Profile Git</a>
-    <form id="ctx-add-friend-form" action="{{ url_for('add_friend_by_id') }}" method="POST">
-        <input type="hidden" name="friend_id" id="ctx-friend-id">
-        <button type="submit" class="ctx-item">➕ Arkadaş Ekle</button>
-    </form>
+    <button id="ctx-add-friend-btn" class="ctx-item" onclick="ctxAddFriend()">➕ Arkadaş Ekle</button>
 </div>
 
 <style>
-    /* Tasarım detayları yukarıdaki ile aynıdır... */
     .lb-wrapper { max-width: 700px; margin: 30px auto; padding: 0 15px; }
     .lb-header-box { text-align: center; margin-bottom: 20px; padding: 30px !important; border-bottom: 3px solid var(--accent) !important; }
     .lb-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
     .lb-tab-btn { flex: 1; padding: 12px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-weight: bold; cursor: pointer; border-radius: 8px; transition: all 0.3s; }
-    .lb-tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 15px rgba(200, 155, 60, 0.3); }
+    .lb-tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: 0 0 15px rgba(200,155,60,0.3); }
     .lb-pane { display: none; }
     .lb-pane.active { display: block; animation: slideUp 0.4s ease; }
-    .lb-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid var(--border); transition: 0.2s; cursor: pointer; }
-    .lb-me { background: rgba(200, 155, 60, 0.05); border-left: 3px solid var(--accent); }
-    .top-three { background: rgba(200, 155, 60, 0.05); }
-    .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.1rem; }
+    .lb-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; border-bottom: 1px solid var(--border); transition: 0.2s; cursor: pointer; }
+    .lb-item:hover { background: rgba(255,255,255,0.03); }
+    .lb-me { background: rgba(200,155,60,0.05) !important; border-left: 3px solid var(--accent); }
+    .top-three { background: rgba(200,155,60,0.04); }
+    .lb-pos { min-width: 36px; font-weight: bold; color: var(--text2); font-size: 1.1rem; }
+    .lb-info { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
+    .lb-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+    .lb-avatar-placeholder { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: bold; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+    .lb-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-you { color: var(--accent); font-size: 0.8em; }
+    .lb-stat { font-weight: 800; color: var(--accent); font-size: 1.05rem; white-space: nowrap; }
+    .lb-stat span { font-size: 0.75rem; color: var(--text2); font-weight: 400; }
     .lb-empty { text-align: center; padding: 40px; color: var(--text2); font-style: italic; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .ctx-menu { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 160px; }
+    .ctx-item { display: block; width: 100%; text-align: left; padding: 9px 14px; color: var(--text); text-decoration: none; font-size: 0.9rem; border-radius: 6px; border: none; background: none; cursor: pointer; transition: background 0.15s; }
+    .ctx-item:hover { background: rgba(255,255,255,0.08); color: var(--accent); }
+    @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 </style>
 
 <script>
-    function showLB(type) {
+    let ctxUserId = null;
+
+    function showLB(type, btn) {
         document.querySelectorAll('.lb-pane').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.lb-tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('lb-' + type).classList.add('active');
-        event.currentTarget.classList.add('active');
+        btn.classList.add('active');
     }
 
     document.addEventListener('contextmenu', function(e) {
         const row = e.target.closest('.lb-item');
+        const menu = document.getElementById('leaderboard-ctx');
+
         if (row) {
             e.preventDefault();
-            const userId = row.getAttribute('data-user-id');
-            const isMe = row.classList.contains('lb-me');
-            const menu = document.getElementById('leaderboard-ctx');
-            
+            ctxUserId = row.getAttribute('data-user-id');
+            const isMe = row.getAttribute('data-is-me') === 'true';
+
+            // Ekran kenarı taşmasını önle
             menu.style.display = 'block';
-            menu.style.left = e.pageX + 'px';
-            menu.style.top = e.pageY + 'px';
-            
-            document.getElementById('ctx-profile-link').href = "/profile/" + userId;
-            
-            const addFriendForm = document.getElementById('ctx-add-friend-form');
-            if (isMe) {
-                addFriendForm.style.display = 'none';
-            } else {
-                addFriendForm.style.display = 'block';
-                document.getElementById('ctx-friend-id').value = userId;
-            }
+            const menuW = menu.offsetWidth || 165;
+            const menuH = menu.offsetHeight || 85;
+            const x = Math.min(e.clientX, window.innerWidth - menuW - 10);
+            const y = Math.min(e.clientY, window.innerHeight - menuH - 10);
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+
+            document.getElementById('ctx-profile-link').href = '/user/' + ctxUserId;
+            document.getElementById('ctx-add-friend-btn').style.display = isMe ? 'none' : 'block';
         } else {
-            document.getElementById('leaderboard-ctx').style.display = 'none';
+            menu.style.display = 'none';
         }
     });
 
-    document.addEventListener('click', function() {
+    function ctxAddFriend() {
+        if (!ctxUserId) return;
         document.getElementById('leaderboard-ctx').style.display = 'none';
+
+        fetch('/api/add-friend-by-id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: parseInt(ctxUserId) })
+        })
+        .then(r => r.json())
+        .then(d => {
+            showXPPopup(0, d.message || (d.success ? '🤝 İstek gönderildi!' : '❌ Hata'));
+        })
+        .catch(() => showXPPopup(0, '❌ Bağlantı hatası'));
+    }
+
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('leaderboard-ctx');
+        if (!menu.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') document.getElementById('leaderboard-ctx').style.display = 'none';
     });
 </script>
 {% endblock %}

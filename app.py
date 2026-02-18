@@ -8,6 +8,14 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+# Cloudinary - ortam degiskeni varsa kullan, yoksa local uploads
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = bool(CLOUDINARY_URL)
+if USE_CLOUDINARY:
+    import cloudinary
+    import cloudinary.uploader
+    cloudinary.config(cloudinary_url=CLOUDINARY_URL)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'local-dev-key-2024')
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
@@ -333,6 +341,26 @@ def login_required(f):
         return f(*a,**kw)
     return w
 
+def upload_file(file_obj, prefix='u'):
+    """Dosyayı Cloudinary'e veya local klasöre yükle, dosya adını/URL'ini döndür."""
+    if not file_obj or not file_obj.filename:
+        return None
+    if not allowed_file(file_obj.filename):
+        return None
+    if USE_CLOUDINARY:
+        result = cloudinary.uploader.upload(
+            file_obj,
+            public_id=f"yks_{prefix}{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            overwrite=True,
+            resource_type='image'
+        )
+        return result['secure_url']
+    else:
+        fn = secure_filename(f"{prefix}{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{file_obj.filename}")
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file_obj.save(os.path.join(app.config['UPLOAD_FOLDER'], fn))
+        return fn
+
 def get_photo_url(v):
     if not v or v=='default.png':return None
     if v.startswith('http'):return v
@@ -619,17 +647,13 @@ def deneme():
 def profile():
     if request.method=='POST':
         if 'profile_photo' in request.files:
-            f=request.files['profile_photo']
-            if f and f.filename and allowed_file(f.filename):
-                fn=secure_filename(f"u{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.filename}")
-                f.save(os.path.join(app.config['UPLOAD_FOLDER'],fn))
-                db_execute('UPDATE users SET profile_photo=? WHERE id=?',(fn,session['user_id']));db_commit();flash('PP güncellendi!','success')
+            result = upload_file(request.files['profile_photo'], prefix='u')
+            if result:
+                db_execute('UPDATE users SET profile_photo=? WHERE id=?',(result,session['user_id']));db_commit();flash('PP güncellendi!','success')
         if 'profile_banner' in request.files:
-            f=request.files['profile_banner']
-            if f and f.filename and allowed_file(f.filename):
-                fn=secure_filename(f"b{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.filename}")
-                f.save(os.path.join(app.config['UPLOAD_FOLDER'],fn))
-                db_execute('UPDATE users SET profile_banner=? WHERE id=?',(fn,session['user_id']));db_commit();flash('Banner güncellendi!','success')
+            result = upload_file(request.files['profile_banner'], prefix='b')
+            if result:
+                db_execute('UPDATE users SET profile_banner=? WHERE id=?',(result,session['user_id']));db_commit();flash('Banner güncellendi!','success')
         if 'daily_hours' in request.form:
             db_execute('UPDATE users SET daily_goal_minutes=?,target_university=?,target_mat_net=?,target_fiz_net=?,target_kim_net=?,target_bio_net=?,pomodoro_work=?,pomodoro_break=? WHERE id=?',
                        (int(float(request.form.get('daily_hours',6))*60),request.form.get('target_university',''),float(request.form.get('target_mat_net',0)),float(request.form.get('target_fiz_net',0)),float(request.form.get('target_kim_net',0)),float(request.form.get('target_bio_net',0)),int(request.form.get('pomodoro_work',25)),int(request.form.get('pomodoro_break',5)),session['user_id']))
@@ -671,18 +695,6 @@ def friends():
     inc=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.sender_id WHERE f.receiver_id=? AND f.status='pending'",(session['user_id'],))
     out=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.receiver_id WHERE f.sender_id=? AND f.status='pending'",(session['user_id'],))
     return render_template('friends.html',user=u,rank=get_rank(u['total_lp']),friends=fr,incoming=inc,outgoing=out)
-
-@app.route('/api/search-user')
-@login_required
-def search_user():
-    q = request.args.get('q', '').strip()
-    if not q or len(q) < 2:
-        return jsonify([])
-    results = db_fetchall(
-        "SELECT id, username, total_lp FROM users WHERE username LIKE ? AND id != ? LIMIT 10",
-        ('%' + q + '%', session['user_id'])
-    )
-    return jsonify(results)
 
 @app.route('/api/add-friend-by-id', methods=['POST'])
 @login_required

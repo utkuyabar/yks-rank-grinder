@@ -1,62 +1,83 @@
 {% extends "base.html" %}
-{% block title %}{{ target['username'] if target else 'Liderlik Tablosu' }}{% endblock %}
+{% block title %}Liderlik Tablosu{% endblock %}
 
 {% block content %}
-<div class="profile-banner-wrap">
-    {% if target and target['profile_banner'] %}
-        <img src="{{get_photo_url(target['profile_banner'])}}" class="profile-banner-img">
-    {% else %}
-        <div class="profile-banner-default" style="--rank-color:{{ target_rank['color'] if target_rank else '#ccc' }}"></div>
-    {% endif %}
-</div>
+<div class="container mt-4">
+    <h1 class="text-center mb-4">🏆 Sıralamalar</h1>
 
+    <ul class="nav nav-pills nav-justified mb-4" id="lbTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#rank-tab">⭐ Rank/LP</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#study-tab">⏳ Haftalık Çalışma</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#deneme-tab">📝 Deneme Neti</button>
+        </li>
+    </ul>
 
-<div class="profile-main-wrap">
-    <div class="card profile-card" style="max-width:600px;margin:0 auto">
-        <div class="profile-photo-wrap">
-            {% if target %}
-                {% set pp = get_photo_url(target.get('profile_photo')) %}
-                {% if pp %}
-                    <img src="{{pp}}" class="profile-photo animated-pp">
-                {% else %}
-                    <div class="profile-photo-placeholder">{{ target['username'][0]|upper }}</div>
-                {% endif %}
-            {% endif %}
+    <div class="tab-content border p-3 rounded bg-white shadow-sm">
+        <div class="tab-pane fade show active" id="rank-tab">
+            <h3>En Yüksek LP'ye Sahip Olanlar</h3>
+            <table class="table align-middle">
+                <thead><tr><th>#</th><th>Kullanıcı</th><th>LP</th></tr></thead>
+                <tbody>
+                    {% for p in global_lb %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <img src="{{ get_photo_url(p['profile_photo']) }}" class="rounded-circle me-2" width="30" height="30" onerror="this.src='/static/img/default_pp.png'">
+                            {{ p['username'] }}
+                        </td>
+                        <td><strong>{{ p['total_lp'] }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        <h2 class="profile-username">{{ target['username'] if target else 'Yükleniyor...' }}</h2>
-        
-        <div class="profile-rank-display">
-            {% if target_rank %}
-                <img src="{{url_for('static',filename='img/ranks/'+target_rank['img'])}}" class="profile-rank-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-                <span style="display:none;font-size:2rem">{{target_rank['icon']}}</span>
-                <div class="profile-rank-name" style="color:{{target_rank['color']}}">{{target_rank['name']}}</div>
-            {% endif %}
+
+        <div class="tab-pane fade" id="study-tab">
+            <h3>Haftalık Çalışma Şampiyonları (Dakika)</h3>
+            <table class="table align-middle">
+                <thead><tr><th>#</th><th>Kullanıcı</th><th>Süre</th></tr></thead>
+                <tbody>
+                    {% for p in weekly_study_lb %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ p['username'] }}</td>
+                        <td><span class="badge bg-success">{{ p['weekly_total'] }} dk</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="text-center">Henüz veri yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
-        <div class="profile-stats">
-            <div class="p-stat"><strong>{{ target['total_lp'] if target else 0 }}</strong><span>LP</span></div>
-            <div class="p-stat"><strong>#{{ my_position }}</strong><span>Sıra</span></div>
+        <div class="tab-pane fade" id="deneme-tab">
+            <h3>En Yüksek Deneme Netleri</h3>
+            <table class="table align-middle">
+                <thead><tr><th>#</th><th>Kullanıcı</th><th>En İyi Net</th></tr></thead>
+                <tbody>
+                    {% for p in deneme_lb %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ p['username'] }}</td>
+                        <td><span class="badge bg-primary">{{ p['best_net'] }} Net</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="text-center">Henüz veri yok.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <div class="card" style="max-width:600px;margin:20px auto">
-        <h3>🏅 Başarımlar ({{ earned_ids|length if earned_ids else 0 }})</h3>
-        <div class="ach-grid">
-            {% if achievements %}
-                {% for a in achievements %}
-                    {% if earned_ids and a['id'] in earned_ids %}
-                        <div class="ach-card ach-earned">
-                            <div class="ach-card-icon">{{a['icon']}}</div>
-                            <div class="ach-card-info">
-                                <div class="ach-card-name">{{a['name']}}</div>
-                                <div class="ach-card-desc">{{a['desc']}}</div>
-                            </div>
-                            <span>✅</span>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-        </div>
-    </div>
 </div>
+
+<style>
+    .nav-pills .nav-link.active { background-color: #6c5ce7; }
+    .nav-link { color: #2d3436; font-weight: bold; }
+    .table img { object-fit: cover; }
+</style>
 {% endblock %}

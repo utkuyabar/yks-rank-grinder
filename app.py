@@ -736,93 +736,46 @@ def leaderboard():
         if USE_POSTGRES and hasattr(g, 'db'):
             g.db.rollback()
 
-    # Kullanıcı verisi
     u = db_fetchone('SELECT * FROM users WHERE id=?', (session['user_id'],))
     
-    # Varsayılan boş değerler (Hata olsa da site açılır)
-    global_lb = []
-    friends_lb = [u]
-    today_lb = []
+    # 1. KATEGORİ: RANK/LP (Toplam LP'ye göre)
+    global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 50')
+
+    # 2. KATEGORİ: HAFTALIK ÇALIŞMA (Son 7 günde en çok çalışanlar)
+    one_week_ago = (date.today() - timedelta(days=7)).isoformat()
     weekly_study_lb = []
+    try:
+        # created_at veya start_time sütununa göre bakıyoruz
+        weekly_study_lb = db_fetchall('''
+            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as weekly_total
+            FROM study_sessions s 
+            JOIN users u ON s.user_id = u.id 
+            WHERE s.created_at >= ? 
+            GROUP BY u.id, u.username, u.profile_photo 
+            ORDER BY weekly_total DESC LIMIT 50
+        ''', (one_week_ago,))
+    except:
+        safe_rollback()
+
+    # 3. KATEGORİ: EN İYİ DENEME (Son deneme netlerine göre)
     deneme_lb = []
-    recent_badges = []
-
-    # 1. Genel Sıralama
-    try:
-        global_lb = db_fetchall('SELECT username, total_lp, profile_photo FROM users ORDER BY total_lp DESC LIMIT 100')
-    except: safe_rollback()
-
-    # 2. Arkadaş Sıralaması (Sütun isimlerini try-except ile koruduk)
-    try:
-        friends_lb = db_fetchall('''
-            SELECT username, total_lp, profile_photo FROM users 
-            WHERE id IN (
-                SELECT friend_id FROM friendships WHERE user_id = ? AND status = 'accepted'
-                UNION
-                SELECT user_id FROM friendships WHERE friend_id = ? AND status = 'accepted'
-                UNION
-                SELECT ?
-            )
-            ORDER BY total_lp DESC
-        ''', (session['user_id'], session['user_id'], session['user_id']))
-    except:
-        safe_rollback()
-        friends_lb = [u]
-
-    # 3. Çalışma Verileri (Postgres GROUP BY kuralına uygun hale getirildi)
-    today_str = date.today().isoformat()
-    # Not: Postgres'te LIKE ile tarih bakarken sütun isminden emin değilsek bu hata verebilir.
-    # Bu yüzden try-except bloğu hayat kurtarır.
-    try:
-        today_lb = db_fetchall('''
-            SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
-            FROM study_sessions s JOIN users u ON s.user_id = u.id 
-            WHERE CAST(s.created_at AS TEXT) LIKE ? 
-            GROUP BY u.id, u.username, u.profile_photo ORDER BY daily_total DESC LIMIT 50
-        ''', (today_str + '%',))
-    except:
-        safe_rollback()
-        # Eğer created_at de yoksa start_time dene (Geriye dönük uyumluluk)
-        try:
-            today_lb = db_fetchall('''
-                SELECT u.username, u.profile_photo, SUM(s.duration_minutes) as daily_total
-                FROM study_sessions s JOIN users u ON s.user_id = u.id 
-                WHERE CAST(s.start_time AS TEXT) LIKE ? 
-                GROUP BY u.id, u.username, u.profile_photo ORDER BY daily_total DESC LIMIT 50
-            ''', (today_str + '%',))
-        except: safe_rollback()
-
     try:
         deneme_lb = db_fetchall('''
             SELECT u.username, u.profile_photo, MAX(d.net_total) as best_net 
-            FROM deneme_results d JOIN users u ON d.user_id = u.id 
-            GROUP BY u.id, u.username, u.profile_photo ORDER BY best_net DESC LIMIT 50
+            FROM deneme_results d 
+            JOIN users u ON d.user_id = u.id 
+            GROUP BY u.id, u.username, u.profile_photo 
+            ORDER BY best_net DESC LIMIT 50
         ''')
-    except: safe_rollback()
+    except:
+        safe_rollback()
 
-    try:
-        recent_badges = db_fetchall('''
-            SELECT u.username, a.badge_name, a.earned_at 
-            FROM user_achievements a JOIN users u ON a.user_id = u.id 
-            ORDER BY a.earned_at DESC LIMIT 15
-        ''')
-    except: safe_rollback()
-
-    # Sıralama ve Rank Bilgileri
-    all_users = db_fetchall('SELECT id FROM users ORDER BY total_lp DESC')
-    my_pos = next((i + 1 for i, usr in enumerate(all_users) if usr['id'] == session['user_id']), 0)
-    
     tr = get_rank(u['total_lp'])
-    e_ach = db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?', (u['id'],))
-    e_ids = [row['achievement_id'] for row in e_ach] if e_ach else []
-
     return render_template('leaderboard.html', 
-                           user=u, target=u, target_rank=tr, earned_ids=e_ids, 
-                           achievements=globals().get('ACHIEVEMENT_LIST', []),
-                           all_ranks=globals().get('RANKS', []),
-                           rank=tr, global_lb=global_lb, friends_lb=friends_lb, 
-                           today_lb=today_lb, weekly_study_lb=weekly_study_lb, 
-                           deneme_lb=deneme_lb, recent_badges=recent_badges, my_position=my_pos)
+                           user=u, target=u, target_rank=tr,
+                           global_lb=global_lb, 
+                           weekly_study_lb=weekly_study_lb, 
+                           deneme_lb=deneme_lb)
 
 @app.route('/chat')
 @login_required

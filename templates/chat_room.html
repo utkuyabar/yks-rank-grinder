@@ -2,7 +2,6 @@
 {% block title %}💬 {{friend['username']}}{% endblock %}
 {% block content %}
 <div class="chatroom">
-    <!-- Header -->
     <div class="chatroom-header">
         <a href="{{url_for('chat')}}" class="btn btn-sm btn-back">← Sohbetler</a>
         <div class="chatroom-friend">
@@ -10,109 +9,66 @@
             {% if pp %}<img src="{{pp}}" class="chatroom-avatar">
             {% else %}<div class="chatroom-avatar-placeholder">{{friend['username'][0]|upper}}</div>{% endif %}
             <div>
-                <div class="chatroom-name">{{friend['username']}}</div>
-                <div class="chatroom-rank" style="color:{{friend_rank['color']}}">
-                    {{friend_rank['icon']}} {{friend_rank['name']}} — {{friend['total_lp']}} LP
-                </div>
+                <a href="{{url_for('user_profile',user_id=friend['id'])}}" class="chatroom-name">{{friend['username']}}</a>
+                <div class="chatroom-rank" style="color:{{friend_rank['color']}}">{{friend_rank['icon']}} {{friend_rank['name']}} — {{friend['total_lp']}} LP</div>
             </div>
         </div>
     </div>
-
-    <!-- Mesajlar -->
     <div class="chatroom-messages" id="chatMessages">
+        {% if messages %}
         {% for m in messages %}
-        <div class="chat-msg {{'chat-msg-me' if m['sender_id']==session['user_id'] else 'chat-msg-them'}}"
-             data-msg-id="{{m['id']}}">
+        <div class="chat-msg {{'chat-msg-me' if m['sender_id']==session['user_id'] else 'chat-msg-them'}}" data-msg-id="{{m['id']}}">
             <div class="chat-msg-bubble">
                 <div class="chat-msg-text">{{m['content']}}</div>
-                <div class="chat-msg-time">{{m['created_at'][-8:-3] if m['created_at'] else ''}}</div>
+                <div class="chat-msg-time">{% if m['created_at'] and m['created_at']|length>16 %}{{m['created_at'][11:16]}}{% endif %}</div>
             </div>
         </div>
         {% endfor %}
+        {% else %}
+        <div class="chat-empty"><p class="muted center">Henüz mesaj yok. İlk mesajı gönder! 💬</p></div>
+        {% endif %}
     </div>
-
-    <!-- Mesaj Gönderme -->
     <div class="chatroom-input">
-        <input type="text" id="msgInput" placeholder="Mesaj yaz..."
-               maxlength="500" autocomplete="off"
-               onkeypress="if(event.key==='Enter')sendMsg()">
+        <input type="text" id="msgInput" placeholder="Mesaj yaz..." maxlength="500" autocomplete="off" onkeypress="if(event.key==='Enter')sendMsg()">
         <button class="btn btn-primary" onclick="sendMsg()">Gönder</button>
     </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
-const FRIEND_ID = {{friend['id']}};
-const MY_ID = {{session['user_id']}};
-let lastMsgId = 0;
-
-// Son mesaj ID'sini bul
-document.querySelectorAll('.chat-msg').forEach(el => {
-    const id = parseInt(el.dataset.msgId);
-    if (id > lastMsgId) lastMsgId = id;
-});
-
-// Scroll en alta
-function scrollBottom() {
-    const c = document.getElementById('chatMessages');
-    c.scrollTop = c.scrollHeight;
-}
+const FRIEND_ID={{friend['id']}},MY_ID={{session['user_id']}};
+let lastMsgId=0;
+document.querySelectorAll('.chat-msg').forEach(el=>{const id=parseInt(el.dataset.msgId);if(id>lastMsgId)lastMsgId=id});
+function scrollBottom(){const c=document.getElementById('chatMessages');c.scrollTop=c.scrollHeight}
 scrollBottom();
-
-// Mesaj gönder
-function sendMsg() {
-    const input = document.getElementById('msgInput');
-    const content = input.value.trim();
-    if (!content) return;
-
-    fetch('/api/send-message', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({receiver_id: FRIEND_ID, content: content})
-    }).then(r => r.json()).then(d => {
-        if (d.success) {
-            input.value = '';
-            pollMessages(); // Hemen yeni mesajları çek
-        }
-    });
+function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+function sendMsg(){
+    const input=document.getElementById('msgInput'),content=input.value.trim();
+    if(!content)return;
+    const container=document.getElementById('chatMessages');
+    const empty=container.querySelector('.chat-empty');if(empty)empty.remove();
+    const tmp=document.createElement('div');tmp.className='chat-msg chat-msg-me';
+    tmp.innerHTML=`<div class="chat-msg-bubble"><div class="chat-msg-text">${escapeHtml(content)}</div><div class="chat-msg-time">şimdi</div></div>`;
+    container.appendChild(tmp);scrollBottom();input.value='';input.focus();
+    fetch('/api/send-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receiver_id:FRIEND_ID,content:content})})
+    .then(r=>r.json()).then(d=>{if(!d.success){tmp.remove();alert(d.message||'Hata')}else setTimeout(pollMessages,500)}).catch(()=>{tmp.remove();alert('Bağlantı hatası!')});
 }
-
-// Yeni mesajları çek (polling)
-function pollMessages() {
-    fetch(`/api/get-messages/${FRIEND_ID}?after=${lastMsgId}`)
-    .then(r => r.json())
-    .then(msgs => {
-        if (msgs.length === 0) return;
-        const container = document.getElementById('chatMessages');
-        msgs.forEach(m => {
-            if (m.id <= lastMsgId) return;
-            lastMsgId = m.id;
-            const div = document.createElement('div');
-            div.className = 'chat-msg ' + (m.sender_id === MY_ID ? 'chat-msg-me' : 'chat-msg-them');
-            div.dataset.msgId = m.id;
-            const time = m.created_at ? m.created_at.substring(11, 16) : '';
-            div.innerHTML = `<div class="chat-msg-bubble"><div class="chat-msg-text">${escapeHtml(m.content)}</div><div class="chat-msg-time">${time}</div></div>`;
-            container.appendChild(div);
-            // Animasyon
-            div.style.opacity = '0';
-            div.style.transform = 'translateY(10px)';
-            setTimeout(() => { div.style.opacity = '1'; div.style.transform = 'translateY(0)'; div.style.transition = 'all 0.3s'; }, 10);
-        });
-        scrollBottom();
-    });
+function pollMessages(){
+    fetch(`/api/get-messages/${FRIEND_ID}?after=${lastMsgId}`).then(r=>r.json()).then(msgs=>{
+        if(!msgs||!msgs.length)return;
+        const container=document.getElementById('chatMessages');
+        msgs.forEach(m=>{
+            if(m.id<=lastMsgId)return;lastMsgId=m.id;
+            if(container.querySelector(`[data-msg-id="${m.id}"]`))return;
+            const div=document.createElement('div');div.className='chat-msg '+(m.sender_id===MY_ID?'chat-msg-me':'chat-msg-them');
+            div.dataset.msgId=m.id;
+            const time=m.created_at&&m.created_at.length>=16?m.created_at.substring(11,16):'';
+            div.innerHTML=`<div class="chat-msg-bubble"><div class="chat-msg-text">${escapeHtml(m.content)}</div><div class="chat-msg-time">${time}</div></div>`;
+            div.style.opacity='0';div.style.transform='translateY(10px)';container.appendChild(div);
+            requestAnimationFrame(()=>{div.style.transition='all 0.3s';div.style.opacity='1';div.style.transform='translateY(0)'});
+        });scrollBottom();
+    }).catch(()=>{});
 }
-
-function escapeHtml(text) {
-    const d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-}
-
-// Her 3 saniyede bir yeni mesaj kontrol et
-setInterval(pollMessages, 3000);
-
-// Input odakla
-document.getElementById('msgInput').focus();
+setInterval(pollMessages,3000);document.getElementById('msgInput').focus();
 </script>
 {% endblock %}

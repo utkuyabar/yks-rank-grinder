@@ -1,12 +1,6 @@
-# ================================================================
-#  YKS RANK GRINDER v5.0
-#  Chat + 30 Tema + Banner GIF + Username Change + Split LB
-# ================================================================
-
 import os
 from datetime import datetime, date, timedelta
 from functools import wraps
-
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify, g
@@ -20,7 +14,6 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXT = {'png','jpg','jpeg','gif','webp'}
 
-# ═══════════════ DB KATMANI ═══════════════
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
@@ -45,8 +38,7 @@ def q(query):
     return query.replace('?','%s') if USE_POSTGRES else query
 
 def db_execute(query, params=None):
-    db = get_db()
-    query = q(query)
+    db = get_db(); query = q(query)
     if USE_POSTGRES:
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     else:
@@ -54,15 +46,27 @@ def db_execute(query, params=None):
     cur.execute(query, params or ())
     return cur
 
+def make_serializable(d):
+    if d is None: return None
+    r = {}
+    for k, v in d.items():
+        if isinstance(v, datetime):
+            r[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(v, date):
+            r[k] = v.isoformat()
+        else:
+            r[k] = v
+    return r
+
 def db_fetchone(query, params=None):
     cur = db_execute(query, params)
     row = cur.fetchone(); cur.close()
-    return dict(row) if row else None
+    return make_serializable(dict(row)) if row else None
 
 def db_fetchall(query, params=None):
     cur = db_execute(query, params)
     rows = cur.fetchall(); cur.close()
-    return [dict(r) for r in rows]
+    return [make_serializable(dict(r)) for r in rows]
 
 def db_commit():
     get_db().commit()
@@ -72,8 +76,6 @@ def close_db(exc):
     db = g.pop('db', None)
     if db: db.close()
 
-
-# ═══════════════ TABLO OLUŞTURMA ═══════════════
 def init_db():
     db = get_db()
     if USE_POSTGRES:
@@ -140,12 +142,12 @@ def init_db():
             is_read INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
         );
         """)
-        # Upgrade
-        for col, default in [('username_changed_at','NULL'),('profile_banner',"''")]:
-            try: cur.execute(f"ALTER TABLE users ADD COLUMN {col} TIMESTAMP DEFAULT {default}")
+        for col, typ, default in [
+            ('username_changed_at','TIMESTAMP','NULL'),
+            ('profile_banner','TEXT',"''")
+        ]:
+            try: cur.execute(f"ALTER TABLE users ADD COLUMN {col} {typ} DEFAULT {default}")
             except: db.rollback()
-        try: cur.execute("CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, sender_id INTEGER NOT NULL, receiver_id INTEGER NOT NULL, content TEXT NOT NULL, is_read INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW())")
-        except: db.rollback()
         cur.close()
     else:
         db.executescript("""
@@ -158,7 +160,7 @@ def init_db():
             target_kim_net REAL DEFAULT 0, target_bio_net REAL DEFAULT 0,
             total_lp INTEGER DEFAULT 0, goals_set INTEGER DEFAULT 0,
             pomodoro_work INTEGER DEFAULT 25, pomodoro_break INTEGER DEFAULT 5,
-            username_changed_at TIMESTAMP DEFAULT NULL,
+            username_changed_at TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS study_sessions (
@@ -210,45 +212,42 @@ def init_db():
             is_read INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
-        # Upgrade existing tables
         for col in ['username_changed_at','profile_banner']:
             try: db.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT ''")
             except: pass
     db_commit()
 
-
-# ═══════════════ 30 TEMA ═══════════════
 THEMES = [
-    {'id':'lol-classic',  'name':'LoL Classic',     'icon':'🎮','preview':['#0a0e13','#c89b3c','#0ac8b9']},
-    {'id':'arcade',       'name':'Arcade',          'icon':'🕹️','preview':['#0d0221','#ff00ff','#00ffff']},
-    {'id':'ocean',        'name':'Okyanus',         'icon':'🌊','preview':['#0a1628','#00b4d8','#48cae4']},
-    {'id':'forest',       'name':'Orman',           'icon':'🌲','preview':['#0a1a0a','#88cc44','#44bb88']},
-    {'id':'sunset',       'name':'Gün Batımı',     'icon':'🌅','preview':['#1a0e08','#ff6b35','#f7c948']},
-    {'id':'cyberpunk',    'name':'Cyberpunk',       'icon':'💜','preview':['#0a0a1a','#ff2a6d','#05d9e8']},
-    {'id':'valorant',     'name':'Valorant',        'icon':'🔴','preview':['#0f1012','#ff4655','#bd3944']},
-    {'id':'snowdown',     'name':'Kış',            'icon':'❄️','preview':['#0a1520','#88ccff','#44aadd']},
-    {'id':'star-guardian','name':'Yıldız',         'icon':'⭐','preview':['#1a0e20','#ee77aa','#aa77ee']},
-    {'id':'blood-moon',   'name':'Kan Ayı',        'icon':'🌑','preview':['#1a0808','#cc2222','#ff4444']},
-    {'id':'neon',         'name':'Neon',            'icon':'💡','preview':['#0a0a0a','#39ff14','#ff073a']},
-    {'id':'sakura',       'name':'Sakura',          'icon':'🌸','preview':['#1a0e14','#ff99cc','#ffccdd']},
-    {'id':'void',         'name':'Void',            'icon':'🕳️','preview':['#0a0014','#8844cc','#cc77ff']},
-    {'id':'project',      'name':'Project',         'icon':'🤖','preview':['#0a1014','#00ccff','#0088cc']},
-    {'id':'infernal',     'name':'Cehennem',        'icon':'😈','preview':['#1a0a00','#ff6600','#ffaa00']},
-    {'id':'galaxy',       'name':'Galaksi',         'icon':'🌌','preview':['#0a0a1e','#6644cc','#9966ff']},
-    {'id':'spirit',       'name':'Ruh Çiçeği',     'icon':'🦊','preview':['#0e1420','#66bbcc','#aaddee']},
-    {'id':'dark-star',    'name':'Karanlık Yıldız','icon':'⚫','preview':['#08080e','#6622aa','#9944dd']},
-    {'id':'high-noon',    'name':'Kovboy',          'icon':'🤠','preview':['#1a1408','#cc8833','#eebb55']},
-    {'id':'lunar',        'name':'Ay Festivali',    'icon':'🏮','preview':['#1a0a0a','#cc3333','#ffcc00']},
-    {'id':'crystal',      'name':'Kristal',         'icon':'💎','preview':['#0e1418','#44cccc','#88eeff']},
-    {'id':'volcanic',     'name':'Volkan',          'icon':'🌋','preview':['#1a0800','#ee4400','#ff8800']},
-    {'id':'deep-sea',     'name':'Derin Deniz',     'icon':'🐙','preview':['#040e18','#004488','#0066bb']},
-    {'id':'aurora',       'name':'Kutup Işığı',    'icon':'🌈','preview':['#0a1018','#00cc88','#44aaff']},
-    {'id':'desert',       'name':'Çöl',            'icon':'🏜️','preview':['#1a1408','#ccaa44','#eedd88']},
-    {'id':'steampunk',    'name':'Steampunk',       'icon':'⚙️','preview':['#141008','#aa7733','#cc9955']},
-    {'id':'phantom',      'name':'Hayalet',         'icon':'👻','preview':['#0e0e14','#8888aa','#aaaacc']},
-    {'id':'emerald-city', 'name':'Zümrüt Şehir',  'icon':'🏙️','preview':['#081a0e','#00cc66','#44ee88']},
-    {'id':'ruby',         'name':'Yakut',           'icon':'❤️','preview':['#1a0808','#cc1144','#ee3366']},
-    {'id':'sapphire',     'name':'Safir',           'icon':'💙','preview':['#08081a','#2244cc','#4466ee']},
+    {'id':'lol-classic','name':'LoL Classic','icon':'🎮','preview':['#0a0e13','#c89b3c','#0ac8b9']},
+    {'id':'arcade','name':'Arcade','icon':'🕹️','preview':['#0d0221','#ff00ff','#00ffff']},
+    {'id':'ocean','name':'Okyanus','icon':'🌊','preview':['#0a1628','#00b4d8','#48cae4']},
+    {'id':'forest','name':'Orman','icon':'🌲','preview':['#0a1a0a','#88cc44','#44bb88']},
+    {'id':'sunset','name':'Gün Batımı','icon':'🌅','preview':['#1a0e08','#ff6b35','#f7c948']},
+    {'id':'cyberpunk','name':'Cyberpunk','icon':'💜','preview':['#0a0a1a','#ff2a6d','#05d9e8']},
+    {'id':'valorant','name':'Valorant','icon':'🔴','preview':['#0f1012','#ff4655','#bd3944']},
+    {'id':'snowdown','name':'Kış','icon':'❄️','preview':['#0a1520','#88ccff','#44aadd']},
+    {'id':'star-guardian','name':'Yıldız','icon':'⭐','preview':['#1a0e20','#ee77aa','#aa77ee']},
+    {'id':'blood-moon','name':'Kan Ayı','icon':'🌑','preview':['#1a0808','#cc2222','#ff4444']},
+    {'id':'neon','name':'Neon','icon':'💡','preview':['#0a0a0a','#39ff14','#ff073a']},
+    {'id':'sakura','name':'Sakura','icon':'🌸','preview':['#1a0e14','#ff99cc','#ffccdd']},
+    {'id':'void','name':'Void','icon':'🕳️','preview':['#0a0014','#8844cc','#cc77ff']},
+    {'id':'project','name':'Project','icon':'🤖','preview':['#0a1014','#00ccff','#0088cc']},
+    {'id':'infernal','name':'Cehennem','icon':'😈','preview':['#1a0a00','#ff6600','#ffaa00']},
+    {'id':'galaxy','name':'Galaksi','icon':'🌌','preview':['#0a0a1e','#6644cc','#9966ff']},
+    {'id':'spirit','name':'Ruh','icon':'🦊','preview':['#0e1420','#66bbcc','#aaddee']},
+    {'id':'dark-star','name':'Karanlık','icon':'⚫','preview':['#08080e','#6622aa','#9944dd']},
+    {'id':'high-noon','name':'Kovboy','icon':'🤠','preview':['#1a1408','#cc8833','#eebb55']},
+    {'id':'lunar','name':'Ay','icon':'🏮','preview':['#1a0a0a','#cc3333','#ffcc00']},
+    {'id':'crystal','name':'Kristal','icon':'💎','preview':['#0e1418','#44cccc','#88eeff']},
+    {'id':'volcanic','name':'Volkan','icon':'🌋','preview':['#1a0800','#ee4400','#ff8800']},
+    {'id':'deep-sea','name':'Derin Deniz','icon':'🐙','preview':['#040e18','#004488','#0066bb']},
+    {'id':'aurora','name':'Kutup Işığı','icon':'🌈','preview':['#0a1018','#00cc88','#44aaff']},
+    {'id':'desert','name':'Çöl','icon':'🏜️','preview':['#1a1408','#ccaa44','#eedd88']},
+    {'id':'steampunk','name':'Steampunk','icon':'⚙️','preview':['#141008','#aa7733','#cc9955']},
+    {'id':'phantom','name':'Hayalet','icon':'👻','preview':['#0e0e14','#8888aa','#aaaacc']},
+    {'id':'emerald-city','name':'Zümrüt Şehir','icon':'🏙️','preview':['#081a0e','#00cc66','#44ee88']},
+    {'id':'ruby','name':'Yakut','icon':'❤️','preview':['#1a0808','#cc1144','#ee3366']},
+    {'id':'sapphire','name':'Safir','icon':'💙','preview':['#08081a','#2244cc','#4466ee']},
 ]
 
 RANKS = [
@@ -266,8 +265,8 @@ RANKS = [
 
 ACHIEVEMENTS = [
     {'id':'first_session','name':'İlk Adım','desc':'İlk çalışma','icon':'🎯','lp':50,'category':'study'},
-    {'id':'hour_1','name':'Isınma','desc':'1 saat çalış','icon':'⏰','lp':100,'category':'study'},
-    {'id':'hour_10','name':'Çalışkan Arı','desc':'10 saat','icon':'🐝','lp':200,'category':'study'},
+    {'id':'hour_1','name':'Isınma','desc':'1 saat','icon':'⏰','lp':100,'category':'study'},
+    {'id':'hour_10','name':'Çalışkan','desc':'10 saat','icon':'🐝','lp':200,'category':'study'},
     {'id':'hour_50','name':'Savaşçı','desc':'50 saat','icon':'⚔️','lp':400,'category':'study'},
     {'id':'hour_100','name':'Efsane','desc':'100 saat','icon':'🏛️','lp':500,'category':'study'},
     {'id':'hour_200','name':'Tanrı','desc':'200 saat','icon':'👁️','lp':500,'category':'study'},
@@ -284,7 +283,7 @@ ACHIEVEMENTS = [
     {'id':'first_friend','name':'Arkadaş','desc':'İlk arkadaş','icon':'🤝','lp':50,'category':'social'},
     {'id':'friends_5','name':'Ekip','desc':'5 arkadaş','icon':'👥','lp':100,'category':'social'},
     {'id':'first_message','name':'İlk Mesaj','desc':'İlk sohbet','icon':'💬','lp':30,'category':'social'},
-    {'id':'weekly_champ','name':'Haftalık Şampiyon','desc':'Haftanın en iyisi','icon':'🏆','lp':200,'category':'weekly'},
+    {'id':'weekly_champ','name':'Şampiyon','desc':'Haftanın en iyisi','icon':'🏆','lp':200,'category':'weekly'},
     {'id':'rank_bronze','name':'Bronz','desc':'Bronz ol','icon':'🛡️','lp':0,'category':'rank'},
     {'id':'rank_silver','name':'Gümüş','desc':'Gümüş ol','icon':'⚡','lp':0,'category':'rank'},
     {'id':'rank_gold','name':'Altın','desc':'Altın ol','icon':'👑','lp':0,'category':'rank'},
@@ -305,17 +304,15 @@ AYT_TOPICS = {
 }
 SUBJECT_ICONS = {'Matematik':'📐','Fizik':'⚡','Kimya':'🧪','Biyoloji':'🧬'}
 
-
-# ═══════════════ YARDIMCILAR ═══════════════
 def allowed_file(fn):
     return '.' in fn and fn.rsplit('.',1)[1].lower() in ALLOWED_EXT
 
 def get_rank(lp):
-    cur=RANKS[0]
+    c=RANKS[0]
     for r in RANKS:
-        if lp>=r['min_lp']:cur=r
+        if lp>=r['min_lp']:c=r
         else:break
-    return cur
+    return c
 
 def get_next_rank(lp):
     for r in RANKS:
@@ -342,18 +339,17 @@ def get_photo_url(v):
     return url_for('static',filename='uploads/'+v)
 
 def add_notification(uid,ntype,msg,icon='🔔'):
-    db_execute('INSERT INTO notifications(user_id,ntype,message,icon) VALUES(?,?,?,?)',
-               (uid,ntype,msg,icon))
+    db_execute('INSERT INTO notifications(user_id,ntype,message,icon) VALUES(?,?,?,?)',(uid,ntype,msg,icon))
 
 def get_streak(uid):
     u=db_fetchone('SELECT daily_goal_minutes FROM users WHERE id=?',(uid,))
     if not u:return 0
-    goal=u['daily_goal_minutes'];streak=0;d=date.today()-timedelta(days=1)
+    goal=u['daily_goal_minutes'];s=0;d=date.today()-timedelta(days=1)
     while True:
         r=db_fetchone('SELECT COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=? AND session_date=?',(uid,d.isoformat()))
-        if r and r['t']>=goal:streak+=1;d-=timedelta(days=1)
+        if r and r['t']>=goal:s+=1;d-=timedelta(days=1)
         else:break
-    return streak
+    return s
 
 def get_friend_count(uid):
     r=db_fetchone("SELECT COUNT(*) as c FROM friendships WHERE (sender_id=? OR receiver_id=?) AND status='accepted'",(uid,uid))
@@ -363,8 +359,6 @@ def get_unread_messages(uid):
     r=db_fetchone('SELECT COUNT(*) as c FROM messages WHERE receiver_id=? AND is_read=0',(uid,))
     return r['c'] if r else 0
 
-
-# ═══════════════ BAŞARIM + GÜNLÜK + HAFTALIK ═══════════════
 def check_achievements(uid):
     earned={r['achievement_id'] for r in db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?',(uid,))}
     u=db_fetchone('SELECT * FROM users WHERE id=?',(uid,))
@@ -377,16 +371,14 @@ def check_achievements(uid):
     td=db_fetchone('SELECT COUNT(*) as c FROM deneme_results WHERE user_id=?',(uid,))['c']
     streak=get_streak(uid);friends=get_friend_count(uid);lp=u['total_lp']
     hw=db_fetchone('SELECT id FROM weekly_badges WHERE user_id=? LIMIT 1',(uid,))
-    msg_count=db_fetchone('SELECT COUNT(*) as c FROM messages WHERE sender_id=?',(uid,))['c']
-
+    mc=db_fetchone('SELECT COUNT(*) as c FROM messages WHERE sender_id=?',(uid,))['c']
     checks={
         'first_session':ts>=1,'hour_1':th>=1,'hour_10':th>=10,'hour_50':th>=50,
         'hour_100':th>=100,'hour_200':th>=200,
         'streak_3':streak>=3,'streak_7':streak>=7,'streak_14':streak>=14,'streak_30':streak>=30,
         'pomo_1':tp>=1,'pomo_25':tp>=25,'pomo_100':tp>=100,
         'deneme_1':td>=1,'deneme_5':td>=5,
-        'first_friend':friends>=1,'friends_5':friends>=5,
-        'first_message':msg_count>=1,
+        'first_friend':friends>=1,'friends_5':friends>=5,'first_message':mc>=1,
         'weekly_champ':bool(hw),
         'rank_bronze':lp>=1000,'rank_silver':lp>=2500,'rank_gold':lp>=5000,
         'rank_platinum':lp>=8000,'rank_emerald':lp>=12000,'rank_diamond':lp>=17000,
@@ -397,7 +389,6 @@ def check_achievements(uid):
         if tgt>0:
             best=db_fetchone('SELECT MAX(total_net) as m FROM deneme_results WHERE user_id=?',(uid,))
             if best and best['m'] and best['m']>=tgt:checks['deneme_target']=True
-
     for aid,cond in checks.items():
         if aid not in earned and cond and aid in ACHIEVEMENT_MAP:
             a=ACHIEVEMENT_MAP[aid]
@@ -413,17 +404,17 @@ def process_weekly_badges():
     if today.weekday()!=0:return
     we=today-timedelta(days=1);ws=we-timedelta(days=6)
     if db_fetchone('SELECT id FROM weekly_badges WHERE week_start=? LIMIT 1',(ws.isoformat(),)):return
-    for q_str,btype,bname,bicon in [
+    for qs,bt,bn,bi in [
         ('SELECT user_id,SUM(duration_minutes) as total FROM study_sessions WHERE session_date BETWEEN ? AND ? GROUP BY user_id ORDER BY total DESC LIMIT 1','top_study','👑 Çalışma Kralı','👑'),
         ('SELECT user_id,SUM(pomodoro_cycles) as total FROM study_sessions WHERE session_date BETWEEN ? AND ? AND is_pomodoro=1 GROUP BY user_id ORDER BY total DESC LIMIT 1','top_pomo','🍅 Pomo Ustası','🍅'),
         ('SELECT user_id,MAX(total_net) as total FROM deneme_results WHERE deneme_date BETWEEN ? AND ? GROUP BY user_id ORDER BY total DESC LIMIT 1','top_deneme','📊 Deneme Şampiyonu','📊'),
         ('SELECT user_id,SUM(lp_earned) as total FROM study_sessions WHERE session_date BETWEEN ? AND ? GROUP BY user_id ORDER BY total DESC LIMIT 1','top_lp','⚡ LP Avcısı','⚡'),
     ]:
-        w=db_fetchone(q_str,(ws.isoformat(),we.isoformat()))
+        w=db_fetchone(qs,(ws.isoformat(),we.isoformat()))
         if w and w.get('user_id'):
             db_execute('INSERT INTO weekly_badges(user_id,badge_type,badge_name,badge_icon,week_start,week_end,stat_value) VALUES(?,?,?,?,?,?,?)',
-                       (w['user_id'],btype,bname,bicon,ws.isoformat(),we.isoformat(),str(w.get('total',''))))
-            add_notification(w['user_id'],'weekly_badge',f'{bicon} {bname}! +200 LP',bicon)
+                       (w['user_id'],bt,bn,bi,ws.isoformat(),we.isoformat(),str(w.get('total',''))))
+            add_notification(w['user_id'],'weekly_badge',f'{bi} {bn}! +200 LP',bi)
             db_execute('UPDATE users SET total_lp=total_lp+200 WHERE id=?',(w['user_id'],))
     db_commit()
 
@@ -441,12 +432,12 @@ def check_daily_goals(uid):
         if ex and ex['processed']:continue
         mins=db_fetchone('SELECT COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=? AND session_date=?',(uid,d.isoformat()))['t']
         goal=u['daily_goal_minutes']
-        if mins>=goal:lp_ch,met=200,1
-        elif mins>0:lp_ch=max(-int((goal-mins)/goal*30),-30);met=0
-        else:lp_ch,met=-20,0
-        if ex:db_execute('UPDATE daily_checks SET total_minutes=?,goal_met=?,lp_change=?,processed=1 WHERE id=?',(mins,met,lp_ch,ex['id']))
-        else:db_execute('INSERT INTO daily_checks(user_id,check_date,total_minutes,goal_met,lp_change,processed) VALUES(?,?,?,?,?,1)',(uid,d.isoformat(),mins,met,lp_ch))
-        db_execute(f'UPDATE users SET total_lp={mx}(0,total_lp+?) WHERE id=?',(lp_ch,uid))
+        if mins>=goal:lc,met=200,1
+        elif mins>0:lc=max(-int((goal-mins)/goal*30),-30);met=0
+        else:lc,met=-20,0
+        if ex:db_execute('UPDATE daily_checks SET total_minutes=?,goal_met=?,lp_change=?,processed=1 WHERE id=?',(mins,met,lc,ex['id']))
+        else:db_execute('INSERT INTO daily_checks(user_id,check_date,total_minutes,goal_met,lp_change,processed) VALUES(?,?,?,?,?,1)',(uid,d.isoformat(),mins,met,lc))
+        db_execute(f'UPDATE users SET total_lp={mx}(0,total_lp+?) WHERE id=?',(lc,uid))
     streak=get_streak(uid)
     for sd,sl in {3:50,7:150,14:300,30:500}.items():
         if streak==sd:
@@ -454,8 +445,6 @@ def check_daily_goals(uid):
             add_notification(uid,'streak',f'🔥 {sd} gün seri! +{sl} LP','🔥')
     check_achievements(uid);db_commit()
 
-
-# ═══════════════ CONTEXT ═══════════════
 @app.context_processor
 def inject_globals():
     unread=0;unread_msgs=0
@@ -466,11 +455,6 @@ def inject_globals():
     return {'current_theme':session.get('theme','lol-classic'),'all_themes':THEMES,
             'all_ranks':RANKS,'unread_notifs':unread,'unread_msgs':unread_msgs,
             'get_photo_url':get_photo_url,'get_rank':get_rank}
-
-
-# ════════════════════════════════════════
-#  ANA ROTALAR
-# ════════════════════════════════════════
 
 @app.route('/')
 def index():
@@ -484,10 +468,8 @@ def register():
         if len(un)<3:flash('En az 3 karakter.','error');return redirect(url_for('register'))
         if len(pw)<6:flash('Şifre en az 6.','error');return redirect(url_for('register'))
         if pw!=pw2:flash('Eşleşmiyor.','error');return redirect(url_for('register'))
-        if db_fetchone('SELECT 1 FROM users WHERE username=?',(un,)):
-            flash('Alınmış.','error');return redirect(url_for('register'))
-        db_execute('INSERT INTO users(username,password_hash) VALUES(?,?)',(un,generate_password_hash(pw)))
-        db_commit()
+        if db_fetchone('SELECT 1 FROM users WHERE username=?',(un,)):flash('Alınmış.','error');return redirect(url_for('register'))
+        db_execute('INSERT INTO users(username,password_hash) VALUES(?,?)',(un,generate_password_hash(pw)));db_commit()
         u=db_fetchone('SELECT id FROM users WHERE username=?',(un,))
         session['user_id']=u['id'];session['username']=un;session['theme']='lol-classic'
         flash('Kayıt başarılı!','success');return redirect(url_for('setup_goals'))
@@ -536,45 +518,25 @@ def get_notifications():
     db_execute('UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0',(session['user_id'],));db_commit()
     return jsonify(n)
 
-
-# ═══════ KULLANICI ADI DEĞİŞTİRME ═══════
 @app.route('/api/change-username', methods=['POST'])
 @login_required
 def change_username():
-    new_name = request.get_json().get('new_username','').strip()
-    if not new_name or len(new_name)<3:
-        return jsonify(success=False, message='En az 3 karakter.')
-    if len(new_name)>20:
-        return jsonify(success=False, message='En fazla 20 karakter.')
-
-    user = db_fetchone('SELECT username, username_changed_at FROM users WHERE id=?',(session['user_id'],))
-    if user['username'] == new_name:
-        return jsonify(success=False, message='Zaten bu isimdesin.')
-
-    # 7 gün cooldown kontrolü
-    if user.get('username_changed_at') and user['username_changed_at']:
+    nn=request.get_json().get('new_username','').strip()
+    if not nn or len(nn)<3:return jsonify(success=False,message='En az 3 karakter.')
+    if len(nn)>20:return jsonify(success=False,message='En fazla 20.')
+    u=db_fetchone('SELECT username,username_changed_at FROM users WHERE id=?',(session['user_id'],))
+    if u['username']==nn:return jsonify(success=False,message='Zaten bu isimdesin.')
+    if u.get('username_changed_at') and u['username_changed_at']:
         try:
-            last_change = datetime.strptime(str(user['username_changed_at'])[:19], '%Y-%m-%d %H:%M:%S')
-            diff = datetime.now() - last_change
-            if diff.days < 7:
-                remaining = 7 - diff.days
-                return jsonify(success=False,
-                    message=f'İsim değiştirmek için {remaining} gün daha beklemelisin.')
-        except:
-            pass
+            lc=datetime.strptime(str(u['username_changed_at'])[:19],'%Y-%m-%d %H:%M:%S')
+            d=(datetime.now()-lc).days
+            if d<7:return jsonify(success=False,message=f'{7-d} gün bekle.')
+        except:pass
+    if db_fetchone('SELECT 1 FROM users WHERE username=?',(nn,)):return jsonify(success=False,message='Bu isim alınmış.')
+    db_execute('UPDATE users SET username=?,username_changed_at=? WHERE id=?',(nn,datetime.now().strftime('%Y-%m-%d %H:%M:%S'),session['user_id']))
+    db_commit();session['username']=nn
+    return jsonify(success=True,message=f'İsmin "{nn}" oldu! 🎉')
 
-    # İsim müsait mi?
-    if db_fetchone('SELECT 1 FROM users WHERE username=?',(new_name,)):
-        return jsonify(success=False, message='Bu isim alınmış.')
-
-    db_execute('UPDATE users SET username=?, username_changed_at=? WHERE id=?',
-               (new_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), session['user_id']))
-    db_commit()
-    session['username'] = new_name
-    return jsonify(success=True, message=f'İsmin "{new_name}" olarak değiştirildi! 🎉')
-
-
-# ═══════ DASHBOARD ═══════
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -599,14 +561,8 @@ def dashboard():
     pr=db_fetchall("SELECT f.id,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.sender_id WHERE f.receiver_id=? AND f.status='pending'",(session['user_id'],))
     mb=db_fetchall('SELECT * FROM weekly_badges WHERE user_id=? ORDER BY week_start DESC LIMIT 10',(session['user_id'],))
     r=get_rank(u['total_lp']);nr=get_next_rank(u['total_lp']);prog=rank_progress(u['total_lp'])
-    return render_template('dashboard.html',user=u,rank=r,next_rank=nr,rank_progress=prog,
-        today_mins=today_mins,total_mins=total_mins,today_pomodoros=today_pomos,
-        last_deneme=last_deneme,weekly=weekly,subj_stats=subj_stats,streak=streak,
-        subject_icons=SUBJECT_ICONS,recent_achievements=ra,lb_position=lb_pos,
-        total_users=tu,pending_requests=pr,my_badges=mb)
+    return render_template('dashboard.html',user=u,rank=r,next_rank=nr,rank_progress=prog,today_mins=today_mins,total_mins=total_mins,today_pomodoros=today_pomos,last_deneme=last_deneme,weekly=weekly,subj_stats=subj_stats,streak=streak,subject_icons=SUBJECT_ICONS,recent_achievements=ra,lb_position=lb_pos,total_users=tu,pending_requests=pr,my_badges=mb)
 
-
-# ═══════ ÇALIŞMA ═══════
 @app.route('/study')
 @login_required
 def study():
@@ -634,19 +590,14 @@ def save_session():
     lp=(mins*2)+(pc*15 if is_p else 0)
     old_lp=db_fetchone('SELECT total_lp FROM users WHERE id=?',(session['user_id'],))['total_lp']
     old_r=get_rank(old_lp)
-    db_execute('INSERT INTO study_sessions(user_id,subject,topic,duration_minutes,lp_earned,is_pomodoro,pomodoro_cycles,session_date) VALUES(?,?,?,?,?,?,?,?)',
-               (session['user_id'],subj,topic,mins,lp,is_p,pc,date.today().isoformat()))
+    db_execute('INSERT INTO study_sessions(user_id,subject,topic,duration_minutes,lp_earned,is_pomodoro,pomodoro_cycles,session_date) VALUES(?,?,?,?,?,?,?,?)',(session['user_id'],subj,topic,mins,lp,is_p,pc,date.today().isoformat()))
     db_execute('UPDATE users SET total_lp=total_lp+? WHERE id=?',(lp,session['user_id']))
     u=db_fetchone('SELECT total_lp FROM users WHERE id=?',(session['user_id'],))
     new_r=get_rank(u['total_lp']);ru=old_r['name']!=new_r['name']
     if ru:add_notification(session['user_id'],'rankup',f"🎉 {new_r['name']}!",new_r['icon'])
     na=check_achievements(session['user_id']);db_commit()
-    return jsonify(success=True,lp_earned=lp,total_lp=u['total_lp'],rank=new_r['name'],rank_img=new_r['img'],
-        rank_color=new_r['color'],rank_up=ru,new_rank_name=new_r['name'] if ru else None,
-        new_achievements=[{'name':a['name'],'icon':a['icon'],'lp':a['lp']} for a in na],message=f'+{lp} LP! 🎉')
+    return jsonify(success=True,lp_earned=lp,total_lp=u['total_lp'],rank=new_r['name'],rank_img=new_r['img'],rank_color=new_r['color'],rank_up=ru,new_rank_name=new_r['name'] if ru else None,new_achievements=[{'name':a['name'],'icon':a['icon'],'lp':a['lp']} for a in na],message=f'+{lp} LP! 🎉')
 
-
-# ═══════ DENEME ═══════
 @app.route('/deneme', methods=['GET','POST'])
 @login_required
 def deneme():
@@ -657,15 +608,12 @@ def deneme():
         dd=request.form.get('deneme_date',date.today().isoformat());tn=mn+fn+kn+bn
         tgt=u['target_mat_net']+u['target_fiz_net']+u['target_kim_net']+u['target_bio_net']
         lp=int((tn/tgt)*400) if tgt>0 else int(tn*4);lp=max(0,min(lp,800))
-        db_execute('INSERT INTO deneme_results(user_id,mat_net,fiz_net,kim_net,bio_net,total_net,lp_earned,deneme_date) VALUES(?,?,?,?,?,?,?,?)',
-                   (session['user_id'],mn,fn,kn,bn,tn,lp,dd))
+        db_execute('INSERT INTO deneme_results(user_id,mat_net,fiz_net,kim_net,bio_net,total_net,lp_earned,deneme_date) VALUES(?,?,?,?,?,?,?,?)',(session['user_id'],mn,fn,kn,bn,tn,lp,dd))
         db_execute('UPDATE users SET total_lp=total_lp+? WHERE id=?',(lp,session['user_id']))
         check_achievements(session['user_id']);db_commit();flash(f'+{lp} LP','success');return redirect(url_for('deneme'))
     hist=db_fetchall('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date DESC LIMIT 20',(session['user_id'],))
     return render_template('deneme.html',user=u,history=hist)
 
-
-# ═══════ PROFİL ═══════
 @app.route('/profile', methods=['GET','POST'])
 @login_required
 def profile():
@@ -675,50 +623,51 @@ def profile():
             if f and f.filename and allowed_file(f.filename):
                 fn=secure_filename(f"u{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.filename}")
                 f.save(os.path.join(app.config['UPLOAD_FOLDER'],fn))
-                db_execute('UPDATE users SET profile_photo=? WHERE id=?',(fn,session['user_id']));db_commit()
-                flash('PP güncellendi! 📸','success')
+                db_execute('UPDATE users SET profile_photo=? WHERE id=?',(fn,session['user_id']));db_commit();flash('PP güncellendi!','success')
         if 'profile_banner' in request.files:
             f=request.files['profile_banner']
             if f and f.filename and allowed_file(f.filename):
                 fn=secure_filename(f"b{session['user_id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.filename}")
                 f.save(os.path.join(app.config['UPLOAD_FOLDER'],fn))
-                db_execute('UPDATE users SET profile_banner=? WHERE id=?',(fn,session['user_id']));db_commit()
-                flash('Banner güncellendi! 🖼️','success')
+                db_execute('UPDATE users SET profile_banner=? WHERE id=?',(fn,session['user_id']));db_commit();flash('Banner güncellendi!','success')
         if 'daily_hours' in request.form:
             db_execute('UPDATE users SET daily_goal_minutes=?,target_university=?,target_mat_net=?,target_fiz_net=?,target_kim_net=?,target_bio_net=?,pomodoro_work=?,pomodoro_break=? WHERE id=?',
-                       (int(float(request.form.get('daily_hours',6))*60),request.form.get('target_university',''),
-                        float(request.form.get('target_mat_net',0)),float(request.form.get('target_fiz_net',0)),
-                        float(request.form.get('target_kim_net',0)),float(request.form.get('target_bio_net',0)),
-                        int(request.form.get('pomodoro_work',25)),int(request.form.get('pomodoro_break',5)),session['user_id']))
+                       (int(float(request.form.get('daily_hours',6))*60),request.form.get('target_university',''),float(request.form.get('target_mat_net',0)),float(request.form.get('target_fiz_net',0)),float(request.form.get('target_kim_net',0)),float(request.form.get('target_bio_net',0)),int(request.form.get('pomodoro_work',25)),int(request.form.get('pomodoro_break',5)),session['user_id']))
             db_commit();flash('Güncellendi!','success')
     u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
-    stats={'sessions':db_fetchone('SELECT COUNT(*) as c FROM study_sessions WHERE user_id=?',(session['user_id'],))['c'],
-           'total_mins':db_fetchone('SELECT COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=?',(session['user_id'],))['t'],
-           'denemes':db_fetchone('SELECT COUNT(*) as c FROM deneme_results WHERE user_id=?',(session['user_id'],))['c'],
-           'active_days':db_fetchone('SELECT COUNT(DISTINCT session_date) as d FROM study_sessions WHERE user_id=?',(session['user_id'],))['d'],
-           'pomodoros':db_fetchone('SELECT COALESCE(SUM(pomodoro_cycles),0) as t FROM study_sessions WHERE user_id=? AND is_pomodoro=1',(session['user_id'],))['t']}
+    stats={'sessions':db_fetchone('SELECT COUNT(*) as c FROM study_sessions WHERE user_id=?',(session['user_id'],))['c'],'total_mins':db_fetchone('SELECT COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=?',(session['user_id'],))['t'],'denemes':db_fetchone('SELECT COUNT(*) as c FROM deneme_results WHERE user_id=?',(session['user_id'],))['c'],'active_days':db_fetchone('SELECT COUNT(DISTINCT session_date) as d FROM study_sessions WHERE user_id=?',(session['user_id'],))['d'],'pomodoros':db_fetchone('SELECT COALESCE(SUM(pomodoro_cycles),0) as t FROM study_sessions WHERE user_id=? AND is_pomodoro=1',(session['user_id'],))['t']}
     earned_ids={a['achievement_id'] for a in db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?',(session['user_id'],))}
     wb=db_fetchall('SELECT * FROM weekly_badges WHERE user_id=? ORDER BY week_start DESC',(session['user_id'],))
-    # Cooldown hesapla
-    can_change_name=True;name_cooldown_days=0
+    can_change=True;cooldown=0
     if u.get('username_changed_at') and u['username_changed_at']:
         try:
-            lc=datetime.strptime(str(u['username_changed_at'])[:19],'%Y-%m-%d %H:%M:%S')
-            diff=(datetime.now()-lc).days
-            if diff<7:can_change_name=False;name_cooldown_days=7-diff
+            lc=datetime.strptime(str(u['username_changed_at'])[:19],'%Y-%m-%d %H:%M:%S');d=(datetime.now()-lc).days
+            if d<7:can_change=False;cooldown=7-d
         except:pass
-    return render_template('profile.html',user=u,rank=get_rank(u['total_lp']),stats=stats,
-        achievements=ACHIEVEMENTS,earned_ids=earned_ids,weekly_badges=wb,
-        can_change_name=can_change_name,name_cooldown_days=name_cooldown_days)
+    return render_template('profile.html',user=u,rank=get_rank(u['total_lp']),stats=stats,achievements=ACHIEVEMENTS,earned_ids=earned_ids,weekly_badges=wb,can_change_name=can_change,name_cooldown_days=cooldown)
 
+@app.route('/user/<int:user_id>')
+@login_required
+def user_profile(user_id):
+    if user_id==session['user_id']:return redirect(url_for('profile'))
+    t=db_fetchone('SELECT * FROM users WHERE id=?',(user_id,))
+    if not t:flash('Bulunamadı.','error');return redirect(url_for('leaderboard'))
+    tr=get_rank(t['total_lp'])
+    stats={'sessions':db_fetchone('SELECT COUNT(*) as c FROM study_sessions WHERE user_id=?',(user_id,))['c'],'total_mins':db_fetchone('SELECT COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=?',(user_id,))['t'],'denemes':db_fetchone('SELECT COUNT(*) as c FROM deneme_results WHERE user_id=?',(user_id,))['c'],'active_days':db_fetchone('SELECT COUNT(DISTINCT session_date) as d FROM study_sessions WHERE user_id=?',(user_id,))['d'],'pomodoros':db_fetchone('SELECT COALESCE(SUM(pomodoro_cycles),0) as t FROM study_sessions WHERE user_id=? AND is_pomodoro=1',(user_id,))['t']}
+    subj_stats=db_fetchall('SELECT subject,COALESCE(SUM(duration_minutes),0) as t FROM study_sessions WHERE user_id=? GROUP BY subject ORDER BY t DESC',(user_id,))
+    last_deneme=db_fetchone('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date DESC LIMIT 1',(user_id,))
+    earned_ids={a['achievement_id'] for a in db_fetchall('SELECT achievement_id FROM user_achievements WHERE user_id=?',(user_id,))}
+    wb=db_fetchall('SELECT * FROM weekly_badges WHERE user_id=? ORDER BY week_start DESC LIMIT 10',(user_id,))
+    fs=db_fetchone("SELECT * FROM friendships WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?))",(session['user_id'],user_id,user_id,session['user_id']))
+    is_friend=fs and fs['status']=='accepted';is_pending=fs and fs['status']=='pending'
+    lb_pos=db_fetchone('SELECT COUNT(*)+1 as pos FROM users WHERE total_lp>?',(t['total_lp'],))['pos']
+    return render_template('user_profile.html',target=t,target_rank=tr,stats=stats,subj_stats=subj_stats,last_deneme=last_deneme,earned_ids=earned_ids,weekly_badges=wb,achievements=ACHIEVEMENTS,subject_icons=SUBJECT_ICONS,is_friend=is_friend,is_pending=is_pending,lb_position=lb_pos)
 
-# ═══════ ARKADAŞLAR ═══════
 @app.route('/friends')
 @login_required
 def friends():
     u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
-    fr=db_fetchall("SELECT u.id,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON (CASE WHEN f.sender_id=? THEN f.receiver_id ELSE f.sender_id END)=u.id WHERE (f.sender_id=? OR f.receiver_id=?) AND f.status='accepted' ORDER BY u.total_lp DESC",
-                   (session['user_id'],session['user_id'],session['user_id']))
+    fr=db_fetchall("SELECT u.id,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON (CASE WHEN f.sender_id=? THEN f.receiver_id ELSE f.sender_id END)=u.id WHERE (f.sender_id=? OR f.receiver_id=?) AND f.status='accepted' ORDER BY u.total_lp DESC",(session['user_id'],session['user_id'],session['user_id']))
     inc=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.sender_id WHERE f.receiver_id=? AND f.status='pending'",(session['user_id'],))
     out=db_fetchall("SELECT f.id as fid,u.id as uid,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON u.id=f.receiver_id WHERE f.sender_id=? AND f.status='pending'",(session['user_id'],))
     return render_template('friends.html',user=u,rank=get_rank(u['total_lp']),friends=fr,incoming=inc,outgoing=out)
@@ -731,8 +680,7 @@ def add_friend():
     t=db_fetchone('SELECT id FROM users WHERE username=?',(un,))
     if not t:return jsonify(success=False,message='Bulunamadı.')
     if t['id']==session['user_id']:return jsonify(success=False,message='Kendini ekleyemezsin 😄')
-    ex=db_fetchone('SELECT * FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',
-                   (session['user_id'],t['id'],t['id'],session['user_id']))
+    ex=db_fetchone('SELECT * FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',(session['user_id'],t['id'],t['id'],session['user_id']))
     if ex:
         if ex['status']=='accepted':return jsonify(success=False,message='Zaten arkadaşsınız!')
         return jsonify(success=False,message='İstek mevcut.')
@@ -740,7 +688,6 @@ def add_friend():
     add_notification(t['id'],'friend_request',f'📩 {session["username"]} arkadaşlık isteği!','🤝');db_commit()
     return jsonify(success=True,message=f'{un} kullanıcısına istek gönderildi! 🤝')
 
-# Leaderboard üzerinden ID ile arkadaş ekleme
 @app.route('/api/add-friend-by-id', methods=['POST'])
 @login_required
 def add_friend_by_id():
@@ -749,8 +696,7 @@ def add_friend_by_id():
     if int(tid)==session['user_id']:return jsonify(success=False,message='Kendini ekleyemezsin 😄')
     t=db_fetchone('SELECT id,username FROM users WHERE id=?',(tid,))
     if not t:return jsonify(success=False,message='Bulunamadı.')
-    ex=db_fetchone('SELECT * FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',
-                   (session['user_id'],tid,tid,session['user_id']))
+    ex=db_fetchone('SELECT * FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',(session['user_id'],tid,tid,session['user_id']))
     if ex:
         if ex['status']=='accepted':return jsonify(success=False,message='Zaten arkadaşsınız!')
         return jsonify(success=False,message='İstek mevcut.')
@@ -780,172 +726,83 @@ def reject_friend():
 @login_required
 def remove_friend():
     uid=request.get_json().get('user_id')
-    db_execute('DELETE FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',
-               (session['user_id'],uid,uid,session['user_id']));db_commit()
+    db_execute('DELETE FROM friendships WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)',(session['user_id'],uid,uid,session['user_id']));db_commit()
     return jsonify(success=True)
 
-
-# ═══════ LEADERBOARD (İKİLİ) ═══════
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
     u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
-
-    # Global LP sıralaması
     global_lb=db_fetchall('SELECT id,username,profile_photo,total_lp,(SELECT COALESCE(SUM(duration_minutes),0) FROM study_sessions WHERE user_id=users.id) as total_study FROM users ORDER BY total_lp DESC LIMIT 50')
-
-    # Haftalık çalışma sıralaması
     ws=(date.today()-timedelta(days=date.today().weekday())).isoformat()
     weekly_study_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,COALESCE(SUM(s.duration_minutes),0) as week_mins FROM users u JOIN study_sessions s ON s.user_id=u.id AND s.session_date>=? GROUP BY u.id,u.username,u.profile_photo,u.total_lp ORDER BY week_mins DESC LIMIT 50',(ws,))
-
-    # Deneme net sıralaması (son deneme bazında)
-    deneme_lb=db_fetchall('''
-        SELECT u.id,u.username,u.profile_photo,u.total_lp,d.total_net,d.mat_net,d.fiz_net,d.kim_net,d.bio_net,d.deneme_date
-        FROM users u JOIN deneme_results d ON d.user_id=u.id
-        WHERE d.id=(SELECT id FROM deneme_results WHERE user_id=u.id ORDER BY deneme_date DESC LIMIT 1)
-        ORDER BY d.total_net DESC LIMIT 50
-    ''')
-
-    # Arkadaş LB
-    fids_rows=db_fetchall("SELECT CASE WHEN sender_id=? THEN receiver_id ELSE sender_id END as fid FROM friendships WHERE (sender_id=? OR receiver_id=?) AND status='accepted'",
-                          (session['user_id'],session['user_id'],session['user_id']))
+    deneme_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,d.total_net,d.mat_net,d.fiz_net,d.kim_net,d.bio_net,d.deneme_date FROM users u JOIN deneme_results d ON d.user_id=u.id WHERE d.id=(SELECT id FROM deneme_results WHERE user_id=u.id ORDER BY deneme_date DESC LIMIT 1) ORDER BY d.total_net DESC LIMIT 50')
+    fids_rows=db_fetchall("SELECT CASE WHEN sender_id=? THEN receiver_id ELSE sender_id END as fid FROM friendships WHERE (sender_id=? OR receiver_id=?) AND status='accepted'",(session['user_id'],session['user_id'],session['user_id']))
     fids=[f['fid'] for f in fids_rows]+[session['user_id']]
     if len(fids)>1:
         ph=','.join(['%s' if USE_POSTGRES else '?']*len(fids))
         friends_lb=db_fetchall(f'SELECT id,username,profile_photo,total_lp,(SELECT COALESCE(SUM(duration_minutes),0) FROM study_sessions WHERE user_id=users.id) as total_study FROM users WHERE id IN ({ph}) ORDER BY total_lp DESC',fids)
     else:friends_lb=[]
-
-    # Bugün
     today_lb=db_fetchall('SELECT u.id,u.username,u.profile_photo,u.total_lp,COALESCE(SUM(s.duration_minutes),0) as today_mins FROM users u JOIN study_sessions s ON s.user_id=u.id AND s.session_date=? GROUP BY u.id,u.username,u.profile_photo,u.total_lp ORDER BY today_mins DESC LIMIT 20',(date.today().isoformat(),))
-
-    # Rozetler
     recent_badges=db_fetchall('SELECT wb.*,u.username,u.profile_photo FROM weekly_badges wb JOIN users u ON u.id=wb.user_id ORDER BY wb.week_start DESC LIMIT 20')
-
     my_pos=1
     for i,x in enumerate(global_lb):
         if x['id']==session['user_id']:my_pos=i+1;break
-
-    return render_template('leaderboard.html',user=u,rank=get_rank(u['total_lp']),
-        global_lb=global_lb,friends_lb=friends_lb,today_lb=today_lb,
-        weekly_study_lb=weekly_study_lb,deneme_lb=deneme_lb,
-        recent_badges=recent_badges,my_position=my_pos)
-
-
-# ═══════════════ SOHBET SİSTEMİ ═══════════════
+    return render_template('leaderboard.html',user=u,rank=get_rank(u['total_lp']),global_lb=global_lb,friends_lb=friends_lb,today_lb=today_lb,weekly_study_lb=weekly_study_lb,deneme_lb=deneme_lb,recent_badges=recent_badges,my_position=my_pos)
 
 @app.route('/chat')
 @login_required
 def chat():
-    """Sohbet listesi — arkadaşlarla son mesajlar."""
     u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
-    # Arkadaş listesi + her biriyle son mesaj
-    fr=db_fetchall("""
-        SELECT u.id,u.username,u.profile_photo,u.total_lp
-        FROM friendships f
-        JOIN users u ON (CASE WHEN f.sender_id=? THEN f.receiver_id ELSE f.sender_id END)=u.id
-        WHERE (f.sender_id=? OR f.receiver_id=?) AND f.status='accepted'
-        ORDER BY u.username
-    """, (session['user_id'],session['user_id'],session['user_id']))
-
-    # Her arkadaş için son mesaj ve okunmamış sayı
-    chats = []
+    fr=db_fetchall("SELECT u.id,u.username,u.profile_photo,u.total_lp FROM friendships f JOIN users u ON (CASE WHEN f.sender_id=? THEN f.receiver_id ELSE f.sender_id END)=u.id WHERE (f.sender_id=? OR f.receiver_id=?) AND f.status='accepted' ORDER BY u.username",(session['user_id'],session['user_id'],session['user_id']))
+    chats=[]
     for f in fr:
-        last_msg = db_fetchone("""
-            SELECT content, created_at, sender_id FROM messages
-            WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
-            ORDER BY created_at DESC LIMIT 1
-        """, (session['user_id'],f['id'],f['id'],session['user_id']))
-        unread = db_fetchone(
-            'SELECT COUNT(*) as c FROM messages WHERE sender_id=? AND receiver_id=? AND is_read=0',
-            (f['id'], session['user_id']))['c']
-        chats.append({
-            **f,
-            'last_message': last_msg,
-            'unread': unread
-        })
-
-    # Okunmamış mesajı olanları üste al
-    chats.sort(key=lambda x: (x['unread'] > 0, x['last_message']['created_at'] if x['last_message'] else ''), reverse=True)
-
-    return render_template('chat.html', user=u, rank=get_rank(u['total_lp']), chats=chats)
+        lm=db_fetchone("SELECT content,created_at,sender_id FROM messages WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) ORDER BY created_at DESC LIMIT 1",(session['user_id'],f['id'],f['id'],session['user_id']))
+        ur=db_fetchone('SELECT COUNT(*) as c FROM messages WHERE sender_id=? AND receiver_id=? AND is_read=0',(f['id'],session['user_id']))['c']
+        chats.append({'id':f['id'],'username':f['username'],'profile_photo':f.get('profile_photo','default.png'),'total_lp':f['total_lp'],'last_message':lm,'unread':ur})
+    def sk(x):
+        h=1 if x['unread']>0 else 0
+        lt=str(x['last_message']['created_at']) if x['last_message'] and x['last_message'].get('created_at') else ''
+        return(h,lt)
+    chats.sort(key=sk,reverse=True)
+    return render_template('chat.html',user=u,rank=get_rank(u['total_lp']),chats=chats)
 
 @app.route('/chat/<int:friend_id>')
 @login_required
 def chat_with(friend_id):
-    """Belirli arkadaşla sohbet."""
     u=db_fetchone('SELECT * FROM users WHERE id=?',(session['user_id'],))
     friend=db_fetchone('SELECT id,username,profile_photo,total_lp FROM users WHERE id=?',(friend_id,))
-    if not friend:flash('Kullanıcı bulunamadı.','error');return redirect(url_for('chat'))
-
-    # Arkadaş mı kontrol et
-    is_friend=db_fetchone(
-        "SELECT 1 FROM friendships WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)) AND status='accepted'",
-        (session['user_id'],friend_id,friend_id,session['user_id']))
-    if not is_friend:flash('Bu kişiyle arkadaş değilsin.','error');return redirect(url_for('chat'))
-
-    # Mesajları okundu işaretle
-    db_execute('UPDATE messages SET is_read=1 WHERE sender_id=? AND receiver_id=? AND is_read=0',
-               (friend_id, session['user_id']))
-    db_commit()
-
-    # Son 100 mesaj
-    messages=db_fetchall("""
-        SELECT m.*, u.username as sender_name, u.profile_photo as sender_photo
-        FROM messages m JOIN users u ON u.id=m.sender_id
-        WHERE (m.sender_id=? AND m.receiver_id=?) OR (m.sender_id=? AND m.receiver_id=?)
-        ORDER BY m.created_at ASC LIMIT 100
-    """, (session['user_id'],friend_id,friend_id,session['user_id']))
-
-    return render_template('chat_room.html', user=u, rank=get_rank(u['total_lp']),
-        friend=friend, friend_rank=get_rank(friend['total_lp']), messages=messages)
+    if not friend:flash('Bulunamadı.','error');return redirect(url_for('chat'))
+    is_f=db_fetchone("SELECT 1 FROM friendships WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)) AND status='accepted'",(session['user_id'],friend_id,friend_id,session['user_id']))
+    if not is_f:flash('Arkadaş değilsiniz.','error');return redirect(url_for('chat'))
+    db_execute('UPDATE messages SET is_read=1 WHERE sender_id=? AND receiver_id=? AND is_read=0',(friend_id,session['user_id']));db_commit()
+    msgs=db_fetchall("SELECT m.id,m.sender_id,m.receiver_id,m.content,m.created_at,u.username as sender_name FROM messages m JOIN users u ON u.id=m.sender_id WHERE (m.sender_id=? AND m.receiver_id=?) OR (m.sender_id=? AND m.receiver_id=?) ORDER BY m.created_at ASC LIMIT 100",(session['user_id'],friend_id,friend_id,session['user_id']))
+    return render_template('chat_room.html',user=u,rank=get_rank(u['total_lp']),friend=friend,friend_rank=get_rank(friend['total_lp']),messages=msgs)
 
 @app.route('/api/send-message', methods=['POST'])
 @login_required
 def send_message():
-    data=request.get_json()
-    rid=data.get('receiver_id')
-    content=data.get('content','').strip()
-    if not content:return jsonify(success=False,message='Boş mesaj gönderilemez.')
-    if len(content)>500:return jsonify(success=False,message='Mesaj çok uzun (max 500).')
-    if not rid:return jsonify(success=False,message='Geçersiz alıcı.')
-
-    # Arkadaş mı?
-    is_friend=db_fetchone(
-        "SELECT 1 FROM friendships WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)) AND status='accepted'",
-        (session['user_id'],rid,rid,session['user_id']))
-    if not is_friend:return jsonify(success=False,message='Arkadaş değilsiniz.')
-
-    db_execute('INSERT INTO messages(sender_id,receiver_id,content) VALUES(?,?,?)',
-               (session['user_id'],rid,content))
-    check_achievements(session['user_id'])
-    db_commit()
-
-    return jsonify(success=True,message='Gönderildi.')
+    d=request.get_json();rid=d.get('receiver_id');content=d.get('content','').strip()
+    if not content:return jsonify(success=False,message='Boş mesaj.')
+    if len(content)>500:return jsonify(success=False,message='Çok uzun.')
+    if not rid:return jsonify(success=False,message='Geçersiz.')
+    is_f=db_fetchone("SELECT 1 FROM friendships WHERE ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)) AND status='accepted'",(session['user_id'],rid,rid,session['user_id']))
+    if not is_f:return jsonify(success=False,message='Arkadaş değilsiniz.')
+    db_execute('INSERT INTO messages(sender_id,receiver_id,content) VALUES(?,?,?)',(session['user_id'],rid,content))
+    check_achievements(session['user_id']);db_commit()
+    return jsonify(success=True)
 
 @app.route('/api/get-messages/<int:friend_id>')
 @login_required
-def get_messages(friend_id):
-    """Polling ile yeni mesajları al."""
-    after=request.args.get('after','0')  # Son mesaj ID'si
-
-    # Okunmamışları okundu yap
-    db_execute('UPDATE messages SET is_read=1 WHERE sender_id=? AND receiver_id=? AND is_read=0',
-               (friend_id, session['user_id']))
-
-    msgs=db_fetchall("""
-        SELECT m.id, m.sender_id, m.content, m.created_at,
-               u.username as sender_name
-        FROM messages m JOIN users u ON u.id=m.sender_id
-        WHERE ((m.sender_id=? AND m.receiver_id=?) OR (m.sender_id=? AND m.receiver_id=?))
-              AND m.id > ?
-        ORDER BY m.created_at ASC
-    """, (session['user_id'],friend_id,friend_id,session['user_id'],int(after)))
+def get_messages_api(friend_id):
+    after=request.args.get('after','0')
+    try:after_id=int(after)
+    except:after_id=0
+    db_execute('UPDATE messages SET is_read=1 WHERE sender_id=? AND receiver_id=? AND is_read=0',(friend_id,session['user_id']))
+    msgs=db_fetchall("SELECT m.id,m.sender_id,m.content,m.created_at,u.username as sender_name FROM messages m JOIN users u ON u.id=m.sender_id WHERE ((m.sender_id=? AND m.receiver_id=?) OR (m.sender_id=? AND m.receiver_id=?)) AND m.id>? ORDER BY m.created_at ASC",(session['user_id'],friend_id,friend_id,session['user_id'],after_id))
     db_commit()
-
     return jsonify(msgs)
 
-
-# ═══════ STATS ═══════
 @app.route('/stats')
 @login_required
 def stats():
@@ -958,11 +815,8 @@ def stats():
     dt=db_fetchall('SELECT * FROM deneme_results WHERE user_id=? ORDER BY deneme_date ASC LIMIT 30',(session['user_id'],))
     ch=db_fetchall('SELECT * FROM daily_checks WHERE user_id=? AND processed=1 ORDER BY check_date DESC LIMIT 30',(session['user_id'],))
     met=sum(1 for c in ch if c['goal_met']);gpct=int(met/len(ch)*100) if ch else 0
-    return render_template('stats.html',user=u,rank=get_rank(u['total_lp']),next_rank=get_next_rank(u['total_lp']),
-        rank_progress=rank_progress(u['total_lp']),subj_detail=sd,deneme_trend=dt,daily_checks=ch,goal_pct=gpct,subject_icons=SUBJECT_ICONS)
+    return render_template('stats.html',user=u,rank=get_rank(u['total_lp']),next_rank=get_next_rank(u['total_lp']),rank_progress=rank_progress(u['total_lp']),subj_detail=sd,deneme_trend=dt,daily_checks=ch,goal_pct=gpct,subject_icons=SUBJECT_ICONS)
 
-
-# ════════════════════════════════════════
 if __name__=='__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'],exist_ok=True)
     os.makedirs('static/img/ranks',exist_ok=True)

@@ -169,19 +169,22 @@
     });
 
     function goToProfile() {
-        if (!ctxUserId) return;
+        const userId = ctxUserId;
         document.getElementById('leaderboard-ctx').style.display = 'none';
-        window.location.href = '/user_profile/' + ctxUserId;
+        if (userId) {
+            window.location.href = '/user/' + userId;
+        }
     }
 
     function ctxAddFriend() {
-        if (!ctxUserId) return;
+        const userId = ctxUserId;
         document.getElementById('leaderboard-ctx').style.display = 'none';
+        if (!userId) return;
 
         fetch('/api/add-friend-by-id', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: parseInt(ctxUserId) })
+            body: JSON.stringify({ user_id: parseInt(userId) })
         })
         .then(r => r.json())
         .then(d => {
@@ -192,6 +195,11 @@
 
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('leaderboard-ctx');
+        const isMenuButton = e.target.closest('.ctx-item');
+        
+        // Menu button'larına tıklarsa menüyü kapatma (button handler çalışacak)
+        if (isMenuButton) return;
+        
         if (!menu.contains(e.target)) {
             menu.style.display = 'none';
         }
